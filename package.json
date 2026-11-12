@@ -1,0 +1,13 @@
+{
+  "name": "work-companion",
+  "version": "0.3.0",
+  "description": "A small desktop companion for the work day.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0"
+  }
+}
