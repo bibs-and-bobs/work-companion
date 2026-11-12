@@ -12,15 +12,16 @@ It is meant to grow one feature at a time and look finished at every stage.
 
 ---
 
-## What it does today (v0.3)
+## What it does today (v0.4)
 
 | Tab | Card | What it shows |
 |---|---|---|
-| **Today** | **Today** | Press **Begin day** to start a countdown of your day length (default 9h). Shows time left, % done, a progress bar, worked/left/finish. **End day** logs the finish. **Resume** undoes it. |
-| | **Notes** | Type a note and press Enter (or `Ctrl+N` from anywhere). It is timestamped and saved to today's record. Notes stay hidden, with a "Show" toggle. |
+| **Today** | **Today** | Press **Begin day** to start the countdown to **home time** (default 9h at work). Shows time to go, % done, a progress bar, and Worked / Home in / Home at. **Worked** counts 8h for a full day (9h minus the unpaid break). **End day** logs the finish. **Resume** undoes it. |
+| | **Notes** | Type a note and press Enter (or `Ctrl+N` from anywhere). It is timestamped and saved to today's record. Notes stay hidden, with a "Show" toggle. Each note can be **edited** (pencil) or deleted (×). |
 | | **This week** | Week % done, hours worked/left, a bar per day. Click a day to open it in the Calendar. A green dot means that day has notes. |
-| **Calendar** | **Calendar** | Month grid with hours worked and note counts per day. Select a day to read its notes, add or delete notes, and fix its start/end times (for example if you forgot to press Begin day). |
-| *(drawer)* | **Settings** | Day length in hours, which weekdays are workdays, and **Your data**: download a backup / restore one. |
+| **Calendar** | **Calendar** | Month grid with hours worked and note counts per day. Select a day to read its notes, add, edit or delete notes, and fix its start/end times (for example if you forgot to press Begin day). |
+| *(drawer)* | **Settings** | Time at work (default 9h), unpaid break (default 1h), workdays, and **Your data**: save to a file on this PC (automatic), plus manual backup / restore. |
+| *(masthead)* | **Reconnect file** | Appears after a browser restart when a linked file needs the browser's permission again (one click). |
 | *(masthead)* | **Install app** | Appears when the browser can install it as a desktop app (Chrome / Edge). |
 
 Keyboard: `Ctrl+1` Today, `Ctrl+2` Calendar, `Ctrl+N` new note, `Esc` close Settings.
@@ -54,9 +55,16 @@ An installer (`npm install --save-dev electron-builder`, `npm run dist`) would n
 | Running as | Saved in |
 |---|---|
 | Web app | The browser's localStorage for the site (per browser profile). Persistent storage is requested. |
+| Web app + linked file | The same, **plus** a real `.json` file the user chose (Settings → Your data → Choose file…). Every change is written to it automatically. |
 | Electron | `companion.json` in the OS user-data folder |
 
-Browser data can be wiped (clearing site data, IT policies, a new laptop). **Download a backup** in Settings
+**Linked file (v0.4)** uses the browser File System Access API, so it needs Edge or Chrome. How it behaves:
+- The browser remembers the file (the handle is kept in IndexedDB) but asks for permission again after a restart. The app shows **Reconnect file**; one click and saving resumes. Until then changes are still saved in the browser, and the newer copy is written to the file on reconnect.
+- At startup, if the file is linked and permitted, the **most recently saved copy wins**, judged by `_savedAt`. So a file edited or synced (for example by OneDrive) from another PC is picked up.
+- Choosing a file that already holds a work log asks before replacing the browser's data. A file that holds something else is never overwritten.
+- A file in a OneDrive/Documents folder gives automatic cloud backup with no extra code.
+
+Browser data can be wiped (clearing site data, IT policies, a new laptop). Link a file and/or **Download a backup** in Settings
 now and then. A backup is the whole saved JSON object, and restoring runs the normal migrations, so old backups keep working.
 
 ---
@@ -78,7 +86,8 @@ src/styles/riso.css       Design tokens + every style (sections per module)
 src/core/                 Shared framework. Modules never import these directly; they get them via ctx.
   app.js                  Boot: masthead, tabs, Settings drawer, mounts modules. Defines ctx.
   registry.js             registerView() / register() — the view & module contracts
-  store.js                Saved state (one JSON object, namespaced) + versioned migrations
+  store.js                Saved state (one JSON object, namespaced) + versioned migrations + backup + which copy wins (browser vs linked file)
+  filesync.js             Linked file on the PC: file handle, permission, debounced writes (talks to the file only)
   settings.js             User settings (day length, workdays)
   worklog.js              Day records + ALL hour maths (dayStats, weekStats) + actions
   time.js                 Date helpers and formatters (pure)
@@ -86,7 +95,8 @@ src/core/                 Shared framework. Modules never import these directly;
   clock.js                One shared 1-second tick
   dom.js                  h('div.class', {attrs}, ...children) element builder
   settings-panel.js       Settings drawer: Work day section
-  data-panel.js           Settings drawer: Your data (backup / restore)
+  data-panel.js           Settings drawer: Your data (linked file, backup / restore)
+  widgets.js              Shared UI pieces for modules, e.g. noteItem (editable note row)
   pwa.js                  Web-app plumbing: registers sw.js, Install button, persistent storage
 src/modules/
   index.js                THE list of tabs and modules, in order. Turn things on/off here.
@@ -114,12 +124,13 @@ Nothing keeps its own copy of hours or notes.
 {
   "_version": 2,
   "_lastBackup": "2026-11-11T16:20:00.000Z",  // set when a backup is downloaded
-  "settings": { "dayLengthMin": 540, "workdays": [true, true, true, true, true, false, false] },
+  "_savedAt": "2026-11-11T16:21:00.000Z",     // set on every save; decides which copy is newest
+  "settings": { "dayLengthMin": 540, "breakMin": 60, "workdays": [true, true, true, true, true, false, false] },
   "worklog": {
     "2026-11-11": {
       "start": "2026-11-11T07:30:00.000Z",   // Begin day (null = not started)
       "end": null,                            // End day (null = still working)
-      "notes": [{ "id": "mh2x9k3a", "t": "2026-11-11T08:05:00.000Z", "text": "Standup: blocked on API keys" }]
+      "notes": [{ "id": "mh2x9k3a", "t": "2026-11-11T08:05:00.000Z", "text": "Standup: blocked on API keys", "e": "2026-11-11T09:00:00.000Z" }]  // e = last edited (optional)
     }
   },
   "mod:<id>": { }                             // a module's private data, if it needs any
@@ -129,6 +140,14 @@ Nothing keeps its own copy of hours or notes.
 - Days are keyed by local date `YYYY-MM-DD` (`time.dateKey`). Timestamps are ISO strings.
 - An empty day (no start, no notes) is deleted from the log.
 
+### Hours: time at work vs counted work
+
+The user is at work **9h** (`settings.dayLengthMin`, Begin day → home) but only **8h** count (9h minus the unpaid break, `settings.breakMin`).
+The break is **not** placed in the day. Instead:
+- The **countdown, progress bar and % done** use time at work (`presenceMs`, `elapsedMs`, `leftMs`). Home time = start + 9h.
+- **Worked hours and the week total** use counted work: `workedMs = elapsed × (8/9)`, so a full day at work counts exactly 8h. Past home time, extra time is added 1:1 (`overMs`).
+- `targetMs` = counted work for a full day (8h). `workLeftMs` = counted work still to do. `leftMs` = wall-clock time until home.
+
 ### Day states (`worklog.dayStats(date, now)`)
 
 All hour numbers in the UI come from this one function. Change the rules there, not in modules.
@@ -136,9 +155,9 @@ All hour numbers in the UI come from this one function. Change the rules there, 
 | state | meaning | counted in week total? |
 |---|---|---|
 | `idle` | today, a workday, not begun | yes, as a full day still to do |
-| `working` | begun, under the day length | yes |
-| `overtime` | begun today, past day length, not ended | yes (actual time) |
-| `ended` | ended, **or a past day never ended** (counted as exactly one full day) | yes (actual time) |
+| `working` | begun, before home time | yes |
+| `overtime` | begun today, past home time, not ended | yes (counted work + time past home) |
+| `ended` | ended, **or a past day never ended** (counted as exactly one full day: 8h) | yes |
 | `planned` | future workday | yes, as a full day still to do |
 | `missed` | past workday with no start | no |
 | `off` | non-workday with no start (beginning one makes it count) | no |
@@ -170,8 +189,9 @@ export default {
 | key | what |
 |---|---|
 | `h` | element builder: `h('button.btn', { onclick }, 'Label')` |
-| `worklog` | `getDay`, `dayStats`, `weekStats`, `beginDay`, `endDay`, `resumeDay`, `setTimes`, `clearTimes`, `addNote`, `deleteNote` |
-| `settings` | `get()`, `set(patch)`, `dayLengthMs()` |
+| `worklog` | `getDay`, `dayStats`, `weekStats`, `beginDay`, `endDay`, `resumeDay`, `setTimes`, `clearTimes`, `addNote`, `editNote`, `deleteNote` |
+| `settings` | `get()`, `set(patch)`, `dayLengthMs()` (time at work), `workLengthMs()` (counted work) |
+| `widgets` | `noteItem(date, note)`: an editable note row (pencil to edit, × to delete). Use it wherever notes are listed. |
 | `time` | `dateKey`, `fromKey`, `addDays`, `startOfWeek`, `atTime`, `toHHMM`, `fmtDuration`, `fmtTime`, `fmtDate`, `DAY_NAMES`, … |
 | `nav` | `go(view, param)`, `current()`, `onChange(fn)` |
 | `onTick(fn)` | called every second with `now`; returns unsubscribe |
@@ -240,6 +260,7 @@ Code: MIT (`LICENSE`). Bundled fonts: SIL Open Font License, see `NOTICE.md`.
 
 ## Changelog
 
+- **v0.4**: Notes can be edited (Today and Calendar, shared `widgets.noteItem`). Day is now "time at work" (9h, the countdown to home) with an unpaid break (1h) so a full day counts 8h worked. Optional automatic saving to a real file on the PC (File System Access API) with Reconnect, newest-copy-wins and safe handling of foreign files. Settings fields: time at work, unpaid break.
 - **v0.3**: Web app is now the main way to run it, because Smart App Control blocks the unsigned Electron build. Added an install manifest, an app icon, an offline service worker, an Install app button, self-hosted fonts (no outside requests), backup download/restore in Settings, and auto-publishing to GitHub Pages.
 - **v0.2**: Begin day / End day / Resume with a 9h countdown (day length is configurable). Timestamped notes saved to the day. Calendar tab with day details (notes, editable times). Tabs + hash routing. Work log replaces fixed schedule (data migration v1→v2). README is now the project reference.
 - **v0.1**: Today progress (fixed hours per weekday), week overview, schedule settings, riso design system, module registry.
@@ -252,4 +273,6 @@ Code: MIT (`LICENSE`). Bundled fonts: SIL Open Font License, see `NOTICE.md`.
 - Google Calendar meetings on the day bar
 - Tray icon / always-on-top mini mode showing time left
 - Export the log (CSV) and weekly summary
+- Edit a note's time; undo for deleted notes
+- Warn when the last backup / file save is old
 - End-of-day notification

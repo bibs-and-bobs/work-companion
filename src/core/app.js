@@ -10,6 +10,7 @@ import { allViews, allModules, modulesFor } from './registry.js';
 import { h } from './dom.js';
 import { settingsPanel } from './settings-panel.js';
 import { dataPanel } from './data-panel.js';
+import * as widgets from './widgets.js';
 import { initPwa, onInstallable, install } from './pwa.js';
 import '../modules/index.js';
 
@@ -20,6 +21,7 @@ const ctxFor = (mod) => ({
   worklog,    // day records + dayStats/weekStats + actions
   time,       // date helpers and formatters
   nav,        // go(view, param) / current() / onChange(fn)
+  widgets,    // shared UI pieces: noteItem(date, note)
   onTick,     // onTick(fn(now)) every second; returns unsubscribe
   onData: store.onChange, // onData(fn) after any saved change; returns unsubscribe
   ns: {       // the module's private saved data
@@ -47,13 +49,20 @@ function masthead() {
   const installBtn = h('button.btn', { onclick: install, title: 'Install as an app on this computer', hidden: true }, 'Install app');
   onInstallable((can) => { installBtn.hidden = !can; });
 
+  // After a browser restart the saved-file permission has to be granted again with a click.
+  const reconnectBtn = h('button.btn.btn-primary-sm', {
+    hidden: true, title: 'Allow saving to your file again',
+    onclick: async () => { if ((await store.reconnectFile()) === 'loaded') location.reload(); },
+  }, 'Reconnect file');
+  store.onFileStatus((s) => { reconnectBtn.hidden = s.status !== 'needs-permission'; });
+
   return h('header.masthead',
     h('div.masthead-row',
       h('div.masthead-title', h('span.reg', { 'data-text': 'Work' }, 'Work'), h('span.reg.alt', { 'data-text': 'Companion' }, 'Companion')),
       h('div.masthead-meta', date, clock)),
     h('div.masthead-row',
       h('nav.tabs', tabs),
-      h('div.btn-row', installBtn, h('button.btn', { onclick: () => openDrawer(true), title: 'Settings' }, 'Settings'))));
+      h('div.btn-row', reconnectBtn, installBtn, h('button.btn', { onclick: () => openDrawer(true), title: 'Settings' }, 'Settings'))));
 }
 
 function drawer() {

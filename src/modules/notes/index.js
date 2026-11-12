@@ -1,4 +1,4 @@
-// Notes: jot timestamped notes onto today's record. Hidden unless you open them.
+// Notes: jot timestamped notes onto today's record. Hidden unless you open them. Notes can be edited.
 export default {
   id: 'notes',
   title: 'Notes',
@@ -6,7 +6,7 @@ export default {
   ink: 'green',
   span: 'full',
 
-  mount(el, { h, worklog, time, nav, onData }) {
+  mount(el, { h, worklog, time, nav, widgets, onData }) {
     const input = h('input.input.note-input', {
       type: 'text', placeholder: 'Jot something down…  (Ctrl+N)', 'aria-label': 'New note',
       onkeydown: (e) => {
@@ -44,8 +44,8 @@ export default {
       toggle.hidden = !count;
       toggle.textContent = open ? 'Hide' : 'Show';
       list.hidden = !open || !count;
-      list.replaceChildren(...notes.map((n) =>
-        h('li', h('time', time.fmtTime(new Date(n.t))), h('span', n.text))));
+      const today = new Date();
+      list.replaceChildren(...notes.map((n) => widgets.noteItem(today, n)));
     }
 
     const onKey = (e) => {

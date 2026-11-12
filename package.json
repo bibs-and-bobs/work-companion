@@ -1,6 +1,6 @@
 {
   "name": "work-companion",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A small desktop companion for the work day.",
   "main": "main.js",
   "scripts": {

@@ -7,7 +7,7 @@ export default {
   ink: 'yellow',
   span: 'full',
 
-  mount(el, { h, worklog, time, nav, onTick, onData }) {
+  mount(el, { h, worklog, time, nav, widgets, onTick, onData }) {
     const { dateKey, fromKey, addDays, startOfWeek, fmtDuration: dur, fmtTime, fmtDate, toHHMM, atTime } = time;
 
     let selected = dateKey(new Date());
@@ -112,11 +112,8 @@ export default {
           h('label.field', h('span.field-label', 'End'), endIn)),
         hint);
 
-      const sameDay = (iso) => dateKey(new Date(iso)) === selected;
-      noteList.replaceChildren(...(d.notes.length ? d.notes.map((n) => h('li',
-        h('time', sameDay(n.t) ? fmtTime(new Date(n.t)) : `${new Date(n.t).toLocaleDateString([], { day: 'numeric', month: 'short' })} ${fmtTime(new Date(n.t))}`),
-        h('span', n.text),
-        h('button.note-del', { onclick: () => worklog.deleteNote(date, n.id), 'aria-label': 'Delete note', title: 'Delete note' }, '×')))
+      noteList.replaceChildren(...(d.notes.length
+        ? d.notes.map((n) => widgets.noteItem(date, n))
         : [h('li.muted.note-empty', 'No notes for this day.')]));
     }
 

@@ -88,13 +88,15 @@ body::after {
 .btn-primary:hover { box-shadow: 6px 6px 0 var(--blue); }
 .btn-primary:active { box-shadow: 0 0 0 var(--blue); transform: translate(5px, 5px); }
 .btn-icon { padding: 7px 10px; font-size: 15px; }
+.btn-primary-sm { background: var(--pink); color: var(--ink); box-shadow: 3px 3px 0 var(--blue); }
+.file-status { margin: 0; }
 .link {
   font: 700 12px/1 var(--font-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--blue);
   background: none; border: 0; padding: 4px 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
 }
 .link:hover { color: var(--pink); }
 .btn:focus-visible, .tab:focus-visible, .link:focus-visible, .input:focus-visible,
-.day:focus-visible, .cal-cell:focus-visible, .note-del:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+.day:focus-visible, .cal-cell:focus-visible, .note-btn:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
 
 .input {
   font: 14px var(--font-mono); color: var(--ink); background: var(--paper-2); border: 2px solid var(--ink);
@@ -204,10 +206,15 @@ body::after {
 .note-list li:first-child { border-top: 0; }
 .note-list time { font-weight: 700; color: var(--green); font-size: 12px; }
 .note-list li.note-empty { display: block; }
-.note-del {
-  background: none; border: 0; font: 700 18px/1 var(--font-mono); color: var(--muted); cursor: pointer; padding: 0 4px;
+.note-text { min-width: 0; overflow-wrap: anywhere; }
+.note-edited { color: var(--muted); font-size: 11px; font-style: normal; }
+.note-actions { display: flex; gap: 10px; align-items: center; }
+.note-btn {
+  background: none; border: 0; font: 700 17px/1 var(--font-mono); color: var(--muted); cursor: pointer; padding: 2px 4px;
 }
-.note-del:hover { color: var(--pink); }
+.note-btn:hover { color: var(--pink); }
+.note-list li.is-editing { align-items: center; }
+.note-list li .input { padding: 6px 8px; }
 
 /* ───────── Week ───────── */
 .week-summary { display: flex; align-items: flex-end; gap: 24px; flex-wrap: wrap; }

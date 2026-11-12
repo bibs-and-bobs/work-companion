@@ -1,4 +1,5 @@
-// Today: press "Begin day" and count down the day length (Settings).
+// Today: press "Begin day" and count down to home time (time at work, Settings).
+// "Worked" is counted work (time at work minus the unpaid break).
 export default {
   id: 'today',
   title: 'Today',
@@ -27,8 +28,8 @@ export default {
       h('div.bar-labels', startLbl, endLbl),
       h('dl.stats',
         h('div', h('dt', 'Worked'), worked),
-        h('div', h('dt', 'Left'), left),
-        h('div', h('dt', 'Finish'), finish)),
+        h('div', h('dt', 'Home in'), left),
+        h('div', h('dt', 'Home at'), finish)),
       actions,
     );
 
@@ -50,16 +51,16 @@ export default {
       marker.dataset.edge = d.pct < 0.04 ? 'start' : d.pct > 0.96 ? 'end' : '';
 
       if (d.state === 'idle' || d.state === 'off') {
-        const eta = new Date(now.getTime() + d.targetMs);
+        const eta = new Date(now.getTime() + d.presenceMs);
         headline.textContent = d.state === 'idle' ? 'Ready when you are' : 'Day off';
         sub.textContent = d.state === 'idle'
-          ? `${dur(d.targetMs)} day. Start now and you're done at ${fmtTime(eta)}.`
+          ? `${dur(d.presenceMs)} at work, ${dur(d.targetMs)} counted. Start now and you're home at ${fmtTime(eta)}.`
           : 'Not a workday. Rest up.';
         pct.textContent = d.state === 'idle' ? '0%' : '—';
         startLbl.textContent = d.state === 'idle' ? 'Now' : '';
         endLbl.textContent = d.state === 'idle' ? fmtTime(eta) : '';
         worked.textContent = '—';
-        left.textContent = d.state === 'idle' ? dur(d.targetMs) : '—';
+        left.textContent = d.state === 'idle' ? dur(d.presenceMs) : '—';
         finish.textContent = d.state === 'idle' ? `~${fmtTime(eta)}` : '—';
         setActions(d.state, () => [
           h(`button.btn${d.state === 'idle' ? '.btn-primary' : ''}`,
@@ -82,7 +83,7 @@ export default {
           h('button.btn', { onclick: () => worklog.endDay(new Date()) }, 'End day'), editLink(d)]);
       } else if (d.state === 'overtime') {
         headline.textContent = 'Day complete';
-        sub.textContent = `${dur(d.workedMs - d.targetMs)} over. Time to log off.`;
+        sub.textContent = `${dur(d.overMs)} past home time. Time to log off.`;
         left.textContent = '0m';
         finish.textContent = fmtTime(d.finish);
         setActions('overtime', () => [
@@ -90,7 +91,7 @@ export default {
       } else { // ended
         headline.textContent = `Logged ${dur(d.workedMs)}`;
         sub.textContent = `${fmtTime(d.start)} – ${fmtTime(d.end)}. See you tomorrow.`;
-        left.textContent = dur(Math.max(0, d.targetMs - d.workedMs));
+        left.textContent = '—';
         finish.textContent = fmtTime(d.end);
         setActions('ended', () => [
           h('button.btn', { onclick: () => worklog.resumeDay(new Date()) }, 'Resume'), editLink(d)]);
