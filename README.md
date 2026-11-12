@@ -1,7 +1,7 @@
 # Work Companion
 
 A small companion for the work day, in a risograph print style.
-It runs as a **web app you install from the browser** (works offline, no installer).
+It runs as a **web app you install from the browser** (works offline, no installer), and as a **Mac app** (`.dmg`).
 It is meant to grow one feature at a time and look finished at every stage.
 
 ![Today tab](docs/today.png)
@@ -12,7 +12,7 @@ It is meant to grow one feature at a time and look finished at every stage.
 
 ---
 
-## What it does today (v0.3)
+## What it does today (v0.4)
 
 | Tab | Card | What it shows |
 |---|---|---|
@@ -22,8 +22,10 @@ It is meant to grow one feature at a time and look finished at every stage.
 | **Calendar** | **Calendar** | Month grid with hours worked and note counts per day. Select a day to read its notes, add or delete notes, and fix its start/end times (for example if you forgot to press Begin day). |
 | *(drawer)* | **Settings** | Day length in hours, which weekdays are workdays, and **Your data**: download a backup / restore one. |
 | *(masthead)* | **Install app** | Appears when the browser can install it as a desktop app (Chrome / Edge). |
+| *(Mac app)* | **Menu bar** | Work Companion → About, **Settings… (⌘,)**, Hide, Quit; Edit (copy/paste in note fields); View (zoom, full screen); Window. Closing the window keeps it in the Dock. |
 
-Keyboard: `Ctrl+1` Today, `Ctrl+2` Calendar, `Ctrl+N` new note, `Esc` close Settings.
+Keyboard: `Ctrl+1` Today, `Ctrl+2` Calendar, `Ctrl+N` new note, `Ctrl+,` Settings, `Esc` close Settings.
+On a Mac, `⌘` works instead of `Ctrl`, and the labels in the app show `⌘` (`core/keys.js`).
 
 ## Run it
 
@@ -44,17 +46,42 @@ costs money. A web app needs no installing, so nothing gets blocked.
 Serve `src/` with any static server and open it, e.g. `cd src && python3 -m http.server 8000` → http://localhost:8000.
 ES modules don't load from `file://`, so double-clicking `index.html` won't work.
 
-### Optional: Electron desktop build
+### Mac app
+
+The same `src/` wrapped in Electron (`main.js`), built into a `.dmg` by GitHub Actions on a macOS machine
+(`.github/workflows/mac.yml`). You don't need a Mac to build it.
+
+- **Get it:** GitHub → **Actions → Build Mac app** → the latest run → **Artifacts → Work-Companion-mac** (a zip with the files).
+  The workflow runs on every push that touches the app. For a permanent download link, push a tag
+  (`git tag v0.4.0 && git push origin v0.4.0`): the files are then attached to a **GitHub Release**.
+- **Which file:** `…-mac-arm64.dmg` for Apple Silicon (M1/M2/M3/M4, Apple menu → About This Mac says "Apple M…"),
+  `…-mac-x64.dmg` for Intel Macs. The `.zip` files hold the same app without the disk image.
+- **Install:** open the `.dmg`, drag **Work Companion** into **Applications**.
+- **First open (once):** the app has no paid Apple Developer ID ($99/year), only an ad-hoc signature, so macOS blocks
+  the first launch. Double-click it, press **Done** on the warning, then **System Settings → Privacy & Security**,
+  scroll down to *"Work Companion" was blocked* → **Open Anyway** → enter your password. After that it opens normally.
+  Or in Terminal: `xattr -dr com.apple.quarantine "/Applications/Work Companion.app"`.
+- **Updates:** download the new `.dmg` and drag it into Applications again (replace). Your data stays (it's not inside the app).
+- **Locally on a Mac:** `npm install`, then `npm start` to run it, or `npm run dist:mac` to build `dist/*.dmg`.
+
+Alternative with no download at all: open the web app in **Safari → File → Add to Dock** (macOS 14+),
+or install it from Chrome. It then works like an app, with its data in that browser.
+
+### Optional: Windows / Linux Electron build
 
 Still works on machines without Smart App Control: `npm install` then `npm start`.
-An installer (`npm install --save-dev electron-builder`, `npm run dist`) would need code signing to pass Smart App Control.
+A Windows installer (`npm run dist`) would need code signing to pass Smart App Control.
 
 ### Where data lives
 
 | Running as | Saved in |
 |---|---|
 | Web app | The browser's localStorage for the site (per browser profile). Persistent storage is requested. |
-| Electron | `companion.json` in the OS user-data folder |
+| Mac app | `~/Library/Application Support/Work Companion/companion.json` |
+| Electron (other OS) | `companion.json` in the OS user-data folder |
+
+The web app and the Mac app keep **separate** logs. To move your log from one to the other:
+Settings → **Download backup** in one, **Restore** in the other.
 
 Browser data can be wiped (clearing site data, IT policies, a new laptop). **Download a backup** in Settings
 now and then. A backup is the whole saved JSON object, and restoring runs the normal migrations, so old backups keep working.
@@ -64,11 +91,14 @@ now and then. A backup is the whole saved JSON object, and restoring runs the no
 ## Architecture
 
 Plain HTML/CSS/JavaScript ES modules. **No framework and no build step.** That's on purpose: any file can be read and edited directly.
-The same `src/` folder runs as a web app (main) and inside Electron (optional). Nothing loads from other servers: fonts are bundled.
+The same `src/` folder runs as a web app (main) and inside Electron (the Mac app). Nothing loads from other servers: fonts are bundled.
 
 ```
-main.js / preload.js      Optional Electron wrapper: one window + read/write of companion.json
+main.js / preload.js      Electron wrapper (Mac app): window, native menu, read/write of companion.json
+package.json              Electron + electron-builder config ("build": Mac dmg/zip, arm64 + x64)
+build/                    Mac build resources: icon-mac.svg (source) → icon.png (1024), adhoc-sign.js hook
 .github/workflows/        pages.yml: publishes src/ to GitHub Pages on push to main
+                          mac.yml: builds the Mac .dmg/.zip on a macOS runner; Release on v* tags
 src/index.html            Page shell: manifest, icons, fonts, riso.css, core/app.js
 src/manifest.webmanifest  Web-app install info (name, colors, icons)
 src/sw.js                 Service worker: offline cache (network first, cache fallback; no file list to maintain)
@@ -85,6 +115,7 @@ src/core/                 Shared framework. Modules never import these directly;
   nav.js                  Hash router: #/<view>/<param>, e.g. #/calendar/2026-11-11
   clock.js                One shared 1-second tick
   dom.js                  h('div.class', {attrs}, ...children) element builder
+  keys.js                 Shortcut labels: ⌘ on Mac, Ctrl elsewhere
   settings-panel.js       Settings drawer: Work day section
   data-panel.js           Settings drawer: Your data (backup / restore)
   pwa.js                  Web-app plumbing: registers sw.js, Install button, persistent storage
@@ -101,7 +132,7 @@ modules/*          features: draw cards, react to data, call actions
 core/app.js        shell + ctx
 core/worklog.js  core/settings.js  core/nav.js  core/clock.js
 core/store.js      persistence + migrations + backup (export/import)
-platform           browser localStorage (web app)  or  main.js file I/O (Electron)
+platform           browser localStorage (web app)  or  main.js file I/O (Electron / Mac app)
 ```
 
 ### The core idea: one work log
@@ -174,6 +205,7 @@ export default {
 | `settings` | `get()`, `set(patch)`, `dayLengthMs()` |
 | `time` | `dateKey`, `fromKey`, `addDays`, `startOfWeek`, `atTime`, `toHHMM`, `fmtDuration`, `fmtTime`, `fmtDate`, `DAY_NAMES`, … |
 | `nav` | `go(view, param)`, `current()`, `onChange(fn)` |
+| `keys` | `shortcut('N')` → `⌘N` on Mac, `Ctrl+N` elsewhere (for labels only); `isMac` |
 | `onTick(fn)` | called every second with `now`; returns unsubscribe |
 | `onData(fn)` | called after any saved change; returns unsubscribe |
 | `ns` | `get(fallback)` / `set(value)` for the module's private saved data |
@@ -203,6 +235,7 @@ Inspired by risograph printing: flat fluorescent inks on off-white paper, overpr
 **Tokens** (`:root` in `riso.css`): `--paper #f3eee3`, `--ink #1f2a44`, `--pink #ff48b0`, `--blue #0078bf`, `--yellow #ffe800`, `--green #00a95c`, `--orange #ff6c2f`, `--muted`.
 Fonts: **Bricolage Grotesque 800** (display, uppercase headings, numbers) + **Space Mono** (body, labels). Self-hosted in `src/fonts/`, with system fallbacks.
 App icon: `src/icons/icon.svg` (pink + blue overprint with a yellow off-register ring and clock hands). Re-render the PNGs from it if it changes.
+Mac icon: `build/icon-mac.svg`, the same art on Apple's rounded-square grid with an offset ink shadow. Render it to `build/icon.png` (1024×1024, transparent) if either changes.
 
 **Rules**
 1. Only token colors. Inks are flat: no gradients except halftone dots.
@@ -224,7 +257,8 @@ Meaning of inks so far: **pink** = today / now, **blue** = done / week, **yellow
 
 1. **Where does the data live?** About a day → `worklog`. A user preference → `settings`. Private to one feature → `ctx.ns`. Changing an existing shape → add a migration.
 2. **Where does it show?** A card on an existing tab, a new tab (`registerView`), or a section in Settings (`settings(el, ctx)`).
-3. **What else is affected?** Check every module that reads the same data (Today, Week and Calendar all use `dayStats`), keyboard shortcuts, the narrow layout, and every day state.
+3. **What else is affected?** Check every module that reads the same data (Today, Week and Calendar all use `dayStats`), keyboard shortcuts (accept `ctrlKey || metaKey`; label with `ctx.keys.shortcut`), the narrow layout, and every day state.
+   The Mac app runs the same `src/` from `file://`: don't rely on the service worker or on `https`. If a feature needs something native (menu item, notification), add it to `main.js` and a small bridge in `preload.js`.
 4. Register it in `src/modules/index.js`. Add its styles as a new section in `riso.css`, using tokens.
    Keep everything inside `src/` and same-origin (no CDNs) so it works offline and passes work-laptop policies.
    If you change `sw.js` itself, bump its `CACHE` name.
@@ -240,6 +274,8 @@ Code: MIT (`LICENSE`). Bundled fonts: SIL Open Font License, see `NOTICE.md`.
 
 ## Changelog
 
+- **v0.4**: Mac app. GitHub Actions builds a `.dmg`/`.zip` (Apple Silicon + Intel) on every relevant push, and a Release on `v*` tags. Native Mac menu with Settings… (⌘,), Edit menu for copy/paste, About panel, one window at a time, stays in the Dock when closed. Mac icon. Shortcut labels show ⌘ on Macs; `Ctrl/⌘+,` opens Settings everywhere. Safer saving of `companion.json` (write then rename).
+
 - **v0.3**: Web app is now the main way to run it, because Smart App Control blocks the unsigned Electron build. Added an install manifest, an app icon, an offline service worker, an Install app button, self-hosted fonts (no outside requests), backup download/restore in Settings, and auto-publishing to GitHub Pages.
 - **v0.2**: Begin day / End day / Resume with a 9h countdown (day length is configurable). Timestamped notes saved to the day. Calendar tab with day details (notes, editable times). Tabs + hash routing. Work log replaces fixed schedule (data migration v1→v2). README is now the project reference.
 - **v0.1**: Today progress (fixed hours per weekday), week overview, schedule settings, riso design system, module registry.
@@ -250,6 +286,6 @@ Code: MIT (`LICENSE`). Bundled fonts: SIL Open Font License, see `NOTICE.md`.
 - Focus timer (pomodoro) that logs sessions to the day
 - Daily to-do list carried over to tomorrow
 - Google Calendar meetings on the day bar
-- Tray icon / always-on-top mini mode showing time left
+- Tray / menu-bar icon (Mac app: time left in the menu bar) / always-on-top mini mode
 - Export the log (CSV) and weekly summary
 - End-of-day notification

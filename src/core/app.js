@@ -11,6 +11,7 @@ import { h } from './dom.js';
 import { settingsPanel } from './settings-panel.js';
 import { dataPanel } from './data-panel.js';
 import { initPwa, onInstallable, install } from './pwa.js';
+import * as keys from './keys.js';
 import '../modules/index.js';
 
 // Everything a module may use. Modules never import core files directly.
@@ -20,6 +21,7 @@ const ctxFor = (mod) => ({
   worklog,    // day records + dayStats/weekStats + actions
   time,       // date helpers and formatters
   nav,        // go(view, param) / current() / onChange(fn)
+  keys,       // shortcut('N') -> '⌘N' on Mac, 'Ctrl+N' elsewhere; isMac
   onTick,     // onTick(fn(now)) every second; returns unsubscribe
   onData: store.onChange, // onData(fn) after any saved change; returns unsubscribe
   ns: {       // the module's private saved data
@@ -41,7 +43,7 @@ function masthead() {
   onTick(tick);
 
   const tabs = allViews().map((v, i) => h('button.tab', {
-    'data-view': v.id, title: `${v.title} (Ctrl+${i + 1})`, onclick: () => nav.go(v.id),
+    'data-view': v.id, title: `${v.title} (${keys.shortcut(i + 1)})`, onclick: () => nav.go(v.id),
   }, v.title));
 
   const installBtn = h('button.btn', { onclick: install, title: 'Install as an app on this computer', hidden: true }, 'Install app');
@@ -53,7 +55,7 @@ function masthead() {
       h('div.masthead-meta', date, clock)),
     h('div.masthead-row',
       h('nav.tabs', tabs),
-      h('div.btn-row', installBtn, h('button.btn', { onclick: () => openDrawer(true), title: 'Settings' }, 'Settings'))));
+      h('div.btn-row', installBtn, h('button.btn', { onclick: () => openDrawer(true), title: `Settings (${keys.shortcut(',')})` }, 'Settings'))));
 }
 
 function drawer() {
@@ -110,8 +112,15 @@ async function boot() {
   showView(nav.current());
   nav.onChange(showView);
 
+  // Desktop app menu (Electron): "Settings…" in the app menu opens the drawer.
+  window.companion?.onOpenSettings?.(() => openDrawer(true));
+
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') openDrawer(false);
+    if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+      e.preventDefault();
+      openDrawer(true);
+    }
     const n = Number(e.key);
     if ((e.ctrlKey || e.metaKey) && n >= 1 && n <= allViews().length) {
       e.preventDefault();

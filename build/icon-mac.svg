@@ -1,0 +1,19 @@
+<!-- macOS app icon: the web icon (src/icons/icon.svg) on Apple's 1024 grid
+     (824px rounded square, 100px margin), with a riso offset shadow instead of a blur.
+     Render to build/icon.png at 1024x1024 with a transparent background. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect x="116" y="120" width="824" height="824" rx="185" fill="#1f2a44"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#f3eee3" stroke="#1f2a44" stroke-width="10"/>
+  <svg x="132" y="132" width="760" height="760" viewBox="0 0 512 512">
+    <g style="mix-blend-mode:multiply">
+      <circle cx="242" cy="270" r="168" fill="#ff48b0"/>
+      <path d="M270 82 A168 168 0 0 1 270 418 Z" fill="#0078bf" opacity=".95"/>
+      <circle cx="282" cy="250" r="168" fill="none" stroke="#ffe800" stroke-width="22"/>
+    </g>
+    <g stroke="#1f2a44" stroke-linecap="round" fill="none">
+      <path d="M256 256 L256 140" stroke-width="30"/>
+      <path d="M256 256 L340 300" stroke-width="30"/>
+    </g>
+    <circle cx="256" cy="256" r="20" fill="#1f2a44"/>
+  </svg>
+</svg>
