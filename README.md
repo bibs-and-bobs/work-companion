@@ -258,6 +258,7 @@ App icon: `src/icons/icon.svg` (pink + blue overprint with a yellow off-register
 8. Paper grain overlays everything (`body::after`). Don't remove it.
 9. Must work from ~420px wide up. Check narrow layouts.
 10. Visible keyboard focus (blue outline) on everything clickable.
+11. No visible scrollbars (hidden globally in `riso.css`). Scrolling still works. Keep tables and lists that scroll sideways obviously cut off at the edge so people know there is more.
 
 Meaning of inks so far: **pink** = today / now, **blue** = done / week / timesheet, **yellow** = calendar / highlight / days off, **green** = notes and tags, **orange** = to-do.
 
@@ -283,6 +284,7 @@ Code: MIT (`LICENSE`). Bundled fonts: SIL Open Font License, see `NOTICE.md`.
 
 ## Changelog
 
+- **v0.5.1**: Scrollbars hidden everywhere.
 - **v0.5**: Day types (public holiday, vacation, sick, half day), including marking a run of days; they change the week total correctly. Daily to-do list with automatic carry-over, plus planning on future days from the Calendar. Notes tab with search and `#tag` filtering. Timesheet (week/month) with copy-as-text and CSV download. Fixed: the Calendar's day header printed "null" on days with no start time.
 - **v0.4**: Notes can be edited (Today and Calendar, shared `widgets.noteItem`). Day is now "time at work" (9h, the countdown to home) with an unpaid break (1h) so a full day counts 8h worked. Optional automatic saving to a real file on the PC (File System Access API) with Reconnect, newest-copy-wins and safe handling of foreign files. Settings fields: time at work, unpaid break.
 - **v0.3**: Web app is now the main way to run it, because Smart App Control blocks the unsigned Electron build. Added an install manifest, an app icon, an offline service worker, an Install app button, self-hosted fonts (no outside requests), backup download/restore in Settings, and auto-publishing to GitHub Pages.
