@@ -128,6 +128,7 @@ body::after {
 .badge.state-working, .badge.state-overtime { background: var(--pink); color: var(--ink); border-color: var(--pink); }
 .badge.state-ended { background: var(--blue); color: var(--paper); border-color: var(--blue); }
 .badge.state-missed, .badge.state-off { color: var(--muted); border-style: dashed; }
+.badge.state-leave { background: var(--yellow); color: var(--ink); border-color: var(--ink); mix-blend-mode: multiply; }
 
 /* ───────── Views, grid & cards ───────── */
 .grid {
@@ -144,13 +145,14 @@ body::after {
 .card.ink-blue { --accent: var(--blue); }
 .card.ink-yellow { --accent: var(--yellow); }
 .card.ink-green { --accent: var(--green); }
+.card.ink-orange { --accent: var(--orange); }
 .card.span-wide { grid-column: span 2; }
 .card.span-full { grid-column: 1 / -1; }
 .card-title {
   margin: 0 0 14px; font: 700 12px/1 var(--font-mono); text-transform: uppercase; letter-spacing: .14em;
   display: inline-block; background: var(--accent); color: var(--paper); padding: 5px 8px; border-radius: 2px;
 }
-.card.ink-yellow .card-title, .card.ink-pink .card-title, .card.ink-green .card-title { color: var(--ink); }
+.card.ink-yellow .card-title, .card.ink-pink .card-title, .card.ink-green .card-title, .card.ink-orange .card-title { color: var(--ink); }
 
 /* ───────── Today ───────── */
 .today-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
@@ -185,10 +187,11 @@ body::after {
 .bar-marker[data-edge='start']::before { left: 0; transform: none; }
 .bar-marker[data-edge='end']::before { left: auto; right: 0; transform: none; }
 .bar-labels { display: flex; justify-content: space-between; margin-top: 10px; font-size: 12px; color: var(--muted); }
-[data-state='idle'] .bar-marker, [data-state='off'] .bar-marker,
+[data-state='idle'] .bar-marker, [data-state='off'] .bar-marker, [data-state='leave'] .bar-marker,
 [data-state='ended'] .bar-marker, [data-state='overtime'] .bar-marker::before { display: none; }
-[data-state='idle'] .today-pct, [data-state='off'] .today-pct { color: var(--muted); opacity: .4; }
-[data-state='off'] .bar, [data-state='off'] .bar-labels, [data-state='off'] .stats { opacity: .35; }
+[data-state='idle'] .today-pct, [data-state='off'] .today-pct, [data-state='leave'] .today-pct { color: var(--muted); opacity: .4; }
+[data-state='off'] .bar, [data-state='off'] .bar-labels, [data-state='off'] .stats,
+[data-state='leave'] .bar, [data-state='leave'] .bar-labels, [data-state='leave'] .stats { opacity: .35; }
 
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 22px 0 0; }
 .stats > div { border-top: 2px dashed var(--ink); padding-top: 10px; }
@@ -251,7 +254,7 @@ body::after {
   transform: translate(3px, -3px);
 }
 .day.is-today .day-bar { box-shadow: 4px 4px 0 var(--yellow); }
-.day.state-off .day-bar, .day.state-missed .day-bar { border-style: dashed; color: transparent; background: transparent; opacity: .5; }
+.day.state-off .day-bar, .day.state-missed .day-bar, .day.state-leave .day-bar { border-style: dashed; color: transparent; background: transparent; opacity: .5; }
 .day.has-notes .day-bar::after {
   content: ''; position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%;
   background: var(--green); box-shadow: 0 0 0 2px var(--paper);
@@ -260,7 +263,8 @@ body::after {
 .day.is-today .day-name { background: var(--pink); color: var(--ink); padding: 2px 6px; border-radius: 2px; }
 .day-date { font-size: 11px; color: var(--muted); }
 .day-hours { font-size: 12px; font-weight: 700; }
-.day.state-off .day-name, .day.state-off .day-hours, .day.state-missed .day-hours { color: var(--muted); }
+.day.state-off .day-name, .day.state-off .day-hours, .day.state-missed .day-hours, .day.state-leave .day-hours { color: var(--muted); }
+.day.state-leave .day-hours { text-transform: uppercase; font-size: 11px; }
 
 /* ───────── Calendar ───────── */
 .cal { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr); gap: 28px; align-items: start; }
@@ -283,8 +287,9 @@ body::after {
 .cal-foot { display: flex; justify-content: space-between; gap: 4px; font-size: 11px; font-weight: 700; margin-top: auto; white-space: nowrap; }
 .cal-notes { color: var(--green); }
 .cal-cell.is-outside { opacity: .35; }
-.cal-cell.state-off, .cal-cell.state-missed { border-style: dashed; }
-.cal-cell.state-off .cal-bar, .cal-cell.state-missed .cal-bar { visibility: hidden; }
+.cal-cell.state-off, .cal-cell.state-missed, .cal-cell.state-leave { border-style: dashed; }
+.cal-cell.state-off .cal-bar, .cal-cell.state-missed .cal-bar, .cal-cell.state-leave .cal-bar { visibility: hidden; }
+.cal-cell.state-leave { background: rgba(255, 232, 0, .25); }
 .cal-cell.is-today { background: var(--yellow); mix-blend-mode: multiply; }
 .cal-cell.is-today .cal-fill { background: var(--pink); }
 .cal-cell.is-selected { box-shadow: 4px 4px 0 var(--pink); border-width: 3px; padding: 6px; }
@@ -297,6 +302,67 @@ body::after {
 .time-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .detail-sub { margin: 6px 0 0; font: 700 12px/1 var(--font-mono); text-transform: uppercase; letter-spacing: .14em; }
 .note-list-full { margin: 0; }
+
+/* ───────── To-do ───────── */
+.todo-list { list-style: none; margin: 12px 0 0; padding: 0; }
+.todo {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center;
+  padding: 9px 0; border-top: 2px dashed rgba(31, 42, 68, .35);
+}
+.todo:first-child { border-top: 0; }
+.todo.is-editing .input { padding: 6px 8px; }
+.todo-check { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; min-width: 0; }
+.todo-check input { margin: 2px 0 0; width: 18px; height: 18px; flex: none; accent-color: var(--orange); cursor: pointer; }
+.todo-check input:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+.todo-text { overflow-wrap: anywhere; }
+.todo.is-done .todo-text { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 2px; }
+.todo-from { font-size: 11px; color: var(--muted); white-space: nowrap; text-transform: uppercase; letter-spacing: .06em; }
+.todo-list .note-empty { padding: 4px 0; }
+
+/* ───────── Tags & search ───────── */
+mark { background: var(--yellow); color: var(--ink); mix-blend-mode: multiply; padding: 0 2px; border-radius: 2px; }
+.tag {
+  font-family: var(--font-mono); font-weight: 700; font-size: inherit; color: var(--green); background: none; border: 0;
+  padding: 0; cursor: pointer; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px;
+}
+.tag:hover { color: var(--pink); }
+.tag:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+.tag-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.tag-chip {
+  font: 700 12px/1 var(--font-mono); color: var(--ink); background: var(--paper); border: 2px solid var(--ink);
+  border-radius: var(--radius); padding: 6px 9px; cursor: pointer;
+}
+.tag-chip:hover { box-shadow: 2px 2px 0 var(--green); }
+.tag-chip.is-active { background: var(--green); box-shadow: 3px 3px 0 var(--blue); }
+.tag-chip:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+.tag-count { opacity: .6; }
+.results { display: grid; gap: 18px; margin-top: 14px; }
+.result-day .link { font-size: 13px; }
+.result-day .note-list { margin-top: 6px; }
+input[type='search'].input { -webkit-appearance: none; appearance: none; }
+
+/* ───────── Day type (Calendar) ───────── */
+.detail-kind { display: grid; gap: 8px; }
+select.input { cursor: pointer; }
+
+/* ───────── Timesheet ───────── */
+.sheet-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px 22px; }
+.sheet-controls .field { min-width: 180px; }
+.sheet-range { margin-left: auto; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding-bottom: 10px; }
+.chip-inline { display: flex; align-items: center; gap: 8px; padding-bottom: 8px; cursor: pointer; font-size: 13px; }
+.chip-inline input { width: 18px; height: 18px; accent-color: var(--pink); }
+.sheet-wrap { overflow-x: auto; margin-top: 16px; }
+table.sheet { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 440px; }
+.sheet th {
+  text-align: left; font: 700 11px/1 var(--font-mono); text-transform: uppercase; letter-spacing: .12em; color: var(--muted);
+  padding: 8px 10px; border-bottom: 2px solid var(--ink);
+}
+.sheet td { padding: 9px 10px; border-bottom: 2px dashed rgba(31, 42, 68, .3); }
+.sheet .num, .sheet th:nth-child(3), .sheet th:nth-child(5) { text-align: right; font-variant-numeric: tabular-nums; }
+.sheet tr.is-today td { background: rgba(255, 232, 0, .35); }
+.sheet tr.state-missed td, .sheet tr.state-off td { color: var(--muted); }
+.sheet-totals { margin: 14px 0 16px; font-size: 15px; }
+.sheet-totals strong { font: 800 26px/1 var(--font-display); letter-spacing: -.02em; }
 
 /* ───────── Settings drawer ───────── */
 .scrim { position: fixed; inset: 0; background: rgba(31, 42, 68, .25); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 10; }
@@ -332,6 +398,8 @@ body::after {
   .cal-cell.is-selected { padding: 3px; }
   .cal-foot span:first-child { display: none; }
   .note-list li { grid-template-columns: 62px 1fr auto; gap: 8px; }
+  .todo { gap: 8px; }
+  .sheet-range { margin-left: 0; padding-bottom: 0; width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {

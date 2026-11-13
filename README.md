@@ -12,19 +12,22 @@ It is meant to grow one feature at a time and look finished at every stage.
 
 ---
 
-## What it does today (v0.4)
+## What it does today (v0.5)
 
 | Tab | Card | What it shows |
 |---|---|---|
 | **Today** | **Today** | Press **Begin day** to start the countdown to **home time** (default 9h at work). Shows time to go, % done, a progress bar, and Worked / Home in / Home at. **Worked** counts 8h for a full day (9h minus the unpaid break). **End day** logs the finish. **Resume** undoes it. |
-| | **Notes** | Type a note and press Enter (or `Ctrl+N` from anywhere). It is timestamped and saved to today's record. Notes stay hidden, with a "Show" toggle. Each note can be **edited** (pencil) or deleted (×). |
+| | **To-do** | Today's tasks. Tick to finish, pencil to edit, × to delete. **Unfinished tasks move to the next day by themselves** (labelled "from Mon…"); finished ones stay on the day they were done. |
+| | **Notes** | Type a note and press Enter (or `Ctrl+N` from anywhere). It is timestamped and saved to today's record. Notes stay hidden, with a "Show" toggle. Each note can be **edited** (pencil) or deleted (×). Write `#tags` in a note; click a tag to open the Notes tab filtered by it. |
 | | **This week** | Week % done, hours worked/left, a bar per day. Click a day to open it in the Calendar. A green dot means that day has notes. |
-| **Calendar** | **Calendar** | Month grid with hours worked and note counts per day. Select a day to read its notes, add, edit or delete notes, and fix its start/end times (for example if you forgot to press Begin day). |
+| **Calendar** | **Calendar** | Month grid with hours worked, note counts and day-type tags. Select a day to fix its start/end times (for example if you forgot to press Begin day), set its **day type** (public holiday, vacation, sick day, half day), optionally through a later date to mark a whole vacation week, and manage its tasks and notes. Tasks can be planned on future days. |
+| | **Timesheet** | Hours for this week / last week / this month / last month as a table, with a total. **Copy summary** (plain text) and **Download CSV**, each optionally with notes. |
+| **Notes** | **Search notes** | Search all notes (matches are highlighted), filter by `#tag` chips, edit or delete in place, click a day to open it in the Calendar. |
 | *(drawer)* | **Settings** | Time at work (default 9h), unpaid break (default 1h), workdays, and **Your data**: save to a file on this PC (automatic), plus manual backup / restore. |
 | *(masthead)* | **Reconnect file** | Appears after a browser restart when a linked file needs the browser's permission again (one click). |
 | *(masthead)* | **Install app** | Appears when the browser can install it as a desktop app (Chrome / Edge). |
 
-Keyboard: `Ctrl+1` Today, `Ctrl+2` Calendar, `Ctrl+N` new note, `Esc` close Settings.
+Keyboard: `Ctrl+1` Today, `Ctrl+2` Calendar, `Ctrl+3` Notes, `Ctrl+N` new note, `Esc` close Settings.
 
 ## Run it
 
@@ -89,18 +92,20 @@ src/core/                 Shared framework. Modules never import these directly;
   store.js                Saved state (one JSON object, namespaced) + versioned migrations + backup + which copy wins (browser vs linked file)
   filesync.js             Linked file on the PC: file handle, permission, debounced writes (talks to the file only)
   settings.js             User settings (day length, workdays)
-  worklog.js              Day records + ALL hour maths (dayStats, weekStats) + actions
+  worklog.js              Day records + ALL hour maths (dayStats, weekStats, rangeStats) + actions (times, day type, notes, to-dos, carry-over)
   time.js                 Date helpers and formatters (pure)
   nav.js                  Hash router: #/<view>/<param>, e.g. #/calendar/2026-11-11
   clock.js                One shared 1-second tick
   dom.js                  h('div.class', {attrs}, ...children) element builder
   settings-panel.js       Settings drawer: Work day section
   data-panel.js           Settings drawer: Your data (linked file, backup / restore)
-  widgets.js              Shared UI pieces for modules, e.g. noteItem (editable note row)
+  widgets.js              Shared UI pieces: noteItem, todoItem (editable rows), richText (#tags + highlight), tagsOf, dayLabel
   pwa.js                  Web-app plumbing: registers sw.js, Install button, persistent storage
 src/modules/
   index.js                THE list of tabs and modules, in order. Turn things on/off here.
-  today/  notes/  week/  calendar/
+  today/  tasks/  notes/  week/    (Today tab)
+  calendar/  timesheet/              (Calendar tab)
+  search/                            (Notes tab)
 ```
 
 ### Layers (top depends on bottom, never the reverse)
@@ -130,7 +135,9 @@ Nothing keeps its own copy of hours or notes.
     "2026-11-11": {
       "start": "2026-11-11T07:30:00.000Z",   // Begin day (null = not started)
       "end": null,                            // End day (null = still working)
-      "notes": [{ "id": "mh2x9k3a", "t": "2026-11-11T08:05:00.000Z", "text": "Standup: blocked on API keys", "e": "2026-11-11T09:00:00.000Z" }]  // e = last edited (optional)
+      "notes": [{ "id": "mh2x9k3a", "t": "2026-11-11T08:05:00.000Z", "text": "Standup #meeting", "e": "2026-11-11T09:00:00.000Z" }],  // e = last edited (optional)
+      "todos": [{ "id": "k3j2h1xz", "text": "Send invoice", "done": null, "from": "2026-11-09" }],   // done = ISO time when ticked; from = day first planned (optional)
+      "kind": "vacation"                      // optional: holiday | vacation | sick | half
     }
   },
   "mod:<id>": { }                             // a module's private data, if it needs any
@@ -138,7 +145,10 @@ Nothing keeps its own copy of hours or notes.
 ```
 
 - Days are keyed by local date `YYYY-MM-DD` (`time.dateKey`). Timestamps are ISO strings.
-- An empty day (no start, no notes) is deleted from the log.
+- Optional fields (`todos`, `kind`) are left out when empty. A day with nothing in it (no start, notes, to-dos or kind) is deleted from the log.
+- Tags are not stored: they are `#words` inside note text, found with `widgets.tagsOf`.
+- To-do carry-over: `worklog.carryOver(now)` moves open to-dos from earlier days to today (finished ones stay as that day's history). It runs at startup and after midnight (see `core/app.js`), and saves only if something moved. Tasks planned on future days stay there until that day passes.
+- v0.5 only added optional fields, so no migration was needed (`_version` is still 2).
 
 ### Hours: time at work vs counted work
 
@@ -161,8 +171,19 @@ All hour numbers in the UI come from this one function. Change the rules there, 
 | `planned` | future workday | yes, as a full day still to do |
 | `missed` | past workday with no start | no |
 | `off` | non-workday with no start (beginning one makes it count) | no |
+| `leave` | holiday / vacation / sick day with no start | no |
 
 `weekStats(now)` sums the counted days Mon–Sun: `workedMs`, `leftMs`, `pct`.
+`rangeStats(from, to, now)` does the same for any date range (Timesheet): `days`, `workedMs`, `daysWorked`, `leave` counts.
+
+### Day types (`record.kind`, `worklog.KINDS`)
+
+| kind | effect |
+|---|---|
+| `holiday`, `vacation`, `sick` | with no start: state `leave`, **not counted** (no hours expected that day). If you actually begin the day, it is worked as normal. |
+| `half` | halves that day's time at work, break and counted work (4.5h at work / 4h counted by default). Counts normally. |
+
+`setKind(date, kind)` sets one day. `setKindRange(from, to, kind)` marks a run in one save: setting skips non-workdays and days already worked, clearing clears every day in range.
 
 ### Views and modules
 
@@ -174,7 +195,7 @@ export default {
   id: 'focus',               // unique; also its private store namespace
   title: 'Focus',            // card label
   view: 'today',             // which tab (defaults to the first)
-  ink: 'green',              // pink | blue | yellow | green  (card accent)
+  ink: 'green',              // pink | blue | yellow | green | orange  (card accent)
   span: 'full',              // optional: 'wide' | 'full'
   mount(el, ctx) {           // draw into el; return a cleanup function
     const off = ctx.onTick((now) => { /* every second */ });
@@ -189,9 +210,9 @@ export default {
 | key | what |
 |---|---|
 | `h` | element builder: `h('button.btn', { onclick }, 'Label')` |
-| `worklog` | `getDay`, `dayStats`, `weekStats`, `beginDay`, `endDay`, `resumeDay`, `setTimes`, `clearTimes`, `addNote`, `editNote`, `deleteNote` |
+| `worklog` | `KINDS`, `getDay`, `dayStats`, `weekStats`, `rangeStats`, `beginDay`, `endDay`, `resumeDay`, `setTimes`, `clearTimes`, `setKind`, `setKindRange`, `addNote`, `editNote`, `deleteNote`, `allNotes`, `addTodo`, `toggleTodo`, `editTodo`, `deleteTodo`, `carryOver` |
 | `settings` | `get()`, `set(patch)`, `dayLengthMs()` (time at work), `workLengthMs()` (counted work) |
-| `widgets` | `noteItem(date, note)`: an editable note row (pencil to edit, × to delete). Use it wherever notes are listed. |
+| `widgets` | `noteItem(date, note, {query})` and `todoItem(date, todo)`: editable rows (pencil to edit, × to delete). Use them wherever notes / to-dos are listed. `richText(text, {query})` renders `#tags` as links and highlights a search; `tagsOf(text)`; `dayLabel(key)`. |
 | `time` | `dateKey`, `fromKey`, `addDays`, `startOfWeek`, `atTime`, `toHHMM`, `fmtDuration`, `fmtTime`, `fmtDate`, `DAY_NAMES`, … |
 | `nav` | `go(view, param)`, `current()`, `onChange(fn)` |
 | `onTick(fn)` | called every second with `now`; returns unsubscribe |
@@ -206,7 +227,9 @@ A module that throws while mounting only breaks its own card.
 - **Don't redraw under the user's cursor.** If a re-render would replace an input that has focus, skip it (see `calendar/`).
 - **Talk to other features through data or navigation**, not by importing each other. Week opens a day with `nav.go('calendar', key)`. Notes write to the work log and the Calendar picks them up.
 - **Day data goes in the work log.** A module's own preferences or state go in `ctx.ns`. Anything several modules need goes in `core/`.
-- Every state needs a designed look: empty, not started, in progress, done, off.
+- Every state needs a designed look: empty, not started, in progress, done, off, day type (leave / half day).
+- **`replaceChildren(null)` writes the word "null".** When a child may be absent, build an array and `.filter(Boolean)` before spreading.
+- Tests that match by CSS class can clash: several cards reuse `.note-status`, `.note-list`, `.todo-list`. Scope selectors with `.card[data-module="…"]`.
 
 ### Changing saved data safely
 
@@ -236,7 +259,7 @@ App icon: `src/icons/icon.svg` (pink + blue overprint with a yellow off-register
 9. Must work from ~420px wide up. Check narrow layouts.
 10. Visible keyboard focus (blue outline) on everything clickable.
 
-Meaning of inks so far: **pink** = today / now, **blue** = done / week, **yellow** = calendar / highlight, **green** = notes.
+Meaning of inks so far: **pink** = today / now, **blue** = done / week / timesheet, **yellow** = calendar / highlight / days off, **green** = notes and tags, **orange** = to-do.
 
 ---
 
@@ -260,6 +283,7 @@ Code: MIT (`LICENSE`). Bundled fonts: SIL Open Font License, see `NOTICE.md`.
 
 ## Changelog
 
+- **v0.5**: Day types (public holiday, vacation, sick, half day), including marking a run of days; they change the week total correctly. Daily to-do list with automatic carry-over, plus planning on future days from the Calendar. Notes tab with search and `#tag` filtering. Timesheet (week/month) with copy-as-text and CSV download. Fixed: the Calendar's day header printed "null" on days with no start time.
 - **v0.4**: Notes can be edited (Today and Calendar, shared `widgets.noteItem`). Day is now "time at work" (9h, the countdown to home) with an unpaid break (1h) so a full day counts 8h worked. Optional automatic saving to a real file on the PC (File System Access API) with Reconnect, newest-copy-wins and safe handling of foreign files. Settings fields: time at work, unpaid break.
 - **v0.3**: Web app is now the main way to run it, because Smart App Control blocks the unsigned Electron build. Added an install manifest, an app icon, an offline service worker, an Install app button, self-hosted fonts (no outside requests), backup download/restore in Settings, and auto-publishing to GitHub Pages.
 - **v0.2**: Begin day / End day / Resume with a 9h countdown (day length is configurable). Timestamped notes saved to the day. Calendar tab with day details (notes, editable times). Tabs + hash routing. Work log replaces fixed schedule (data migration v1→v2). README is now the project reference.
@@ -269,10 +293,12 @@ Code: MIT (`LICENSE`). Bundled fonts: SIL Open Font License, see `NOTICE.md`.
 
 - Breaks / lunch inside the day bar
 - Focus timer (pomodoro) that logs sessions to the day
-- Daily to-do list carried over to tomorrow
+- Flex-time balance (running +/- against the 8h target)
+- Countdown in the window title and taskbar badge; notification at home time
+- Floating mini countdown window (Document Picture-in-Picture)
+- Riso stamps at milestones, on-time streak, night-print theme
 - Google Calendar meetings on the day bar
 - Tray icon / always-on-top mini mode showing time left
-- Export the log (CSV) and weekly summary
 - Edit a note's time; undo for deleted notes
 - Warn when the last backup / file save is old
 - End-of-day notification

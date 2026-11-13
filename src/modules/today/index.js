@@ -9,6 +9,7 @@ export default {
 
   mount(el, { h, worklog, time, nav, onTick, onData }) {
     const { fmtDuration: dur, fmtTime } = time;
+    const { KINDS } = worklog;
 
     const headline = h('div.today-headline.reg-text');
     const sub = h('div.today-sub');
@@ -50,21 +51,24 @@ export default {
       fill.style.width = marker.style.left = `${d.pct * 100}%`;
       marker.dataset.edge = d.pct < 0.04 ? 'start' : d.pct > 0.96 ? 'end' : '';
 
-      if (d.state === 'idle' || d.state === 'off') {
+      if (d.state === 'idle' || d.state === 'off' || d.state === 'leave') {
+        const idle = d.state === 'idle';
         const eta = new Date(now.getTime() + d.presenceMs);
-        headline.textContent = d.state === 'idle' ? 'Ready when you are' : 'Day off';
-        sub.textContent = d.state === 'idle'
+        headline.textContent = idle ? (d.kind === 'half' ? 'Half day. Ready?' : 'Ready when you are')
+          : d.state === 'leave' ? KINDS[d.kind].label : 'Day off';
+        sub.textContent = idle
           ? `${dur(d.presenceMs)} at work, ${dur(d.targetMs)} counted. Start now and you're home at ${fmtTime(eta)}.`
-          : 'Not a workday. Rest up.';
-        pct.textContent = d.state === 'idle' ? '0%' : '—';
-        startLbl.textContent = d.state === 'idle' ? 'Now' : '';
-        endLbl.textContent = d.state === 'idle' ? fmtTime(eta) : '';
+          : d.state === 'leave' ? `${KINDS[d.kind].sub} Not counted in this week's total.` : 'Not a workday. Rest up.';
+        pct.textContent = idle ? '0%' : '—';
+        startLbl.textContent = idle ? 'Now' : '';
+        endLbl.textContent = idle ? fmtTime(eta) : '';
         worked.textContent = '—';
-        left.textContent = d.state === 'idle' ? dur(d.presenceMs) : '—';
-        finish.textContent = d.state === 'idle' ? `~${fmtTime(eta)}` : '—';
+        left.textContent = idle ? dur(d.presenceMs) : '—';
+        finish.textContent = idle ? `~${fmtTime(eta)}` : '—';
         setActions(d.state, () => [
-          h(`button.btn${d.state === 'idle' ? '.btn-primary' : ''}`,
-            { onclick: () => worklog.beginDay(new Date()) }, d.state === 'idle' ? 'Begin day' : 'Begin anyway'),
+          h(`button.btn${idle ? '.btn-primary' : ''}`,
+            { onclick: () => worklog.beginDay(new Date()) }, idle ? 'Begin day' : 'Begin anyway'),
+          h('button.link', { onclick: () => nav.go('calendar', d.key) }, idle ? 'Mark as day off…' : 'Change day type…'),
         ]);
         return;
       }

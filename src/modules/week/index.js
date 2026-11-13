@@ -8,13 +8,14 @@ export default {
 
   mount(el, { h, worklog, time, nav, onTick, onData }) {
     const dur = time.fmtDuration;
+    const { KINDS } = worklog;
     const summary = h('div.week-summary');
     const ribbon = h('div.ribbon');
     const cols = h('div.week-cols');
     el.append(summary, ribbon, cols);
 
     const label = (d) => ({
-      off: 'off', missed: '—', planned: dur(d.targetMs), idle: dur(d.targetMs),
+      off: 'off', missed: '—', leave: KINDS[d.kind]?.short, planned: dur(d.targetMs), idle: dur(d.targetMs),
       working: `${dur(d.leftMs)} left`, overtime: dur(d.workedMs), ended: dur(d.workedMs),
     })[d.state];
 

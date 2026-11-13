@@ -8,7 +8,7 @@ export default {
 
   mount(el, { h, worklog, time, nav, widgets, onData }) {
     const input = h('input.input.note-input', {
-      type: 'text', placeholder: 'Jot something down…  (Ctrl+N)', 'aria-label': 'New note',
+      type: 'text', placeholder: 'Jot something down…  (Ctrl+N, use #tags)', 'aria-label': 'New note',
       onkeydown: (e) => {
         if (e.key === 'Enter') save();
         if (e.key === 'Escape') input.blur();

@@ -106,6 +106,7 @@ function showView({ view }) {
 async function boot() {
   initPwa();
   await store.loadStore();
+  worklog.carryOver(new Date());   // unfinished to-dos move to today
   nav.setDefault(allViews()[0].id);
 
   const views = allViews().map((v) =>
@@ -118,6 +119,10 @@ async function boot() {
 
   showView(nav.current());
   nav.onChange(showView);
+
+  // After midnight, unfinished to-dos move on to the new day.
+  let day = time.dateKey(new Date());
+  onTick((now) => { if (time.dateKey(now) !== day) { day = time.dateKey(now); worklog.carryOver(now); } });
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') openDrawer(false);
