@@ -1,5 +1,6 @@
 // Calendar: month overview of logged days, plus a detail panel for one day:
-// start/end times, day type (holiday, vacation, sick, half day), tasks and notes.
+// start/end times, day type (holiday, vacation, sick, half day), reminders and finished to-dos, and notes.
+// Cells show a bell for days with reminders and ✓n for to-dos ticked off that day.
 export default {
   id: 'calendar',
   title: 'Calendar',
@@ -7,7 +8,7 @@ export default {
   ink: 'yellow',
   span: 'full',
 
-  mount(el, { h, worklog, time, nav, widgets, onTick, onData }) {
+  mount(el, { h, worklog, tasks, time, nav, widgets, onTick, onData }) {
     const { KINDS } = worklog;
     const { dateKey, fromKey, addDays, startOfWeek, fmtDuration: dur, fmtTime, fmtDate, toHHMM, atTime } = time;
 
@@ -21,9 +22,10 @@ export default {
     const detailKind = h('div.detail-kind');
     const todoList = h('ul.todo-list');
     const todoInput = h('input.input', {
-      type: 'text', placeholder: 'Add a task to this day', 'aria-label': 'Add a task to this day',
+      type: 'text', 'aria-label': 'Add a task',
       onkeydown: (e) => { if (e.key === 'Enter') addTodo(); },
     });
+    const todoForm = h('div.note-form', todoInput, h('button.btn', { onclick: () => addTodo() }, 'Add'));
     const noteList = h('ol.note-list.note-list-full');
     const noteInput = h('input.input', {
       type: 'text', placeholder: 'Add a note to this day', 'aria-label': 'Add a note to this day',
@@ -43,16 +45,18 @@ export default {
         grid),
       h('section.cal-detail',
         detailHead, detailTimes, detailKind,
-        h('h4.detail-sub', 'Tasks'),
+        h('h4.detail-sub', 'To-dos'),
         todoList,
-        h('div.note-form', todoInput, h('button.btn', { onclick: addTodo }, 'Add')),
+        todoForm,
         h('h4.detail-sub', 'Notes'),
         noteList,
         h('div.note-form', noteInput, h('button.btn', { onclick: addNote }, 'Add')))));
 
+    // On today: a plain to-do. On a future day: a to-do with a reminder that morning.
     function addTodo() {
       if (!todoInput.value.trim()) return;
-      worklog.addTodo(todoInput.value, fromKey(selected), new Date());
+      const future = selected > dateKey(new Date());
+      tasks.add(todoInput.value, { remind: future ? { date: selected } : null });
       todoInput.value = '';
       todoInput.focus();
     }
@@ -68,6 +72,13 @@ export default {
     const hhmm = (ms) => { const m = Math.floor(ms / 60_000); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`; };
 
     function renderGrid(now = new Date()) {
+      // reminders (open to-dos) and ticked to-dos per day, counted once for the whole grid
+      const reminders = new Map();
+      const doneCount = new Map();
+      for (const t of tasks.list()) {
+        if (!t.done && t.remind?.date) reminders.set(t.remind.date, true);
+        if (t.done) { const k = dateKey(new Date(t.done)); doneCount.set(k, (doneCount.get(k) ?? 0) + 1); }
+      }
       monthTitle.textContent = month.toLocaleDateString([], { month: 'long', year: 'numeric' });
       const first = startOfWeek(month);
       const cells = [];
@@ -82,7 +93,11 @@ export default {
           { onclick: () => nav.go('calendar', d.key), 'aria-label': fmtDate(date) },
           h('span.cal-num', date.getDate()),
           h('span.cal-bar', h('span.cal-fill', { style: { width: `${d.pct * 100}%` } })),
-          h('span.cal-foot', h('span', hours || (d.kind ? KINDS[d.kind].tag : '')), d.notes.length ? h('span.cal-notes', `✎${d.notes.length}`) : null)));
+          h('span.cal-foot', h('span', hours || (d.kind ? KINDS[d.kind].tag : '')),
+            h('span.cal-icons',
+              reminders.has(d.key) ? h('span.bell', { title: 'Reminder' }) : null,
+              doneCount.get(d.key) ? h('span.cal-done', { title: 'To-dos done' }, `✓${doneCount.get(d.key)}`) : null,
+              d.notes.length ? h('span.cal-notes', { title: 'Notes' }, `✎${d.notes.length}`) : null))));
       }
       grid.replaceChildren(...cells);
     }
@@ -150,9 +165,12 @@ export default {
           ? 'Pick a later date to mark a run of days. Weekends and days you already worked are skipped.'
           : 'Holiday, vacation and sick days are not counted in the week. A half day halves that day.'));
 
-      todoList.replaceChildren(...(d.todos.length
-        ? [...d.todos.filter((t) => !t.done), ...d.todos.filter((t) => t.done)].map((t) => widgets.todoItem(date, t))
-        : [h('li.muted.note-empty', d.isFuture ? 'Nothing planned yet.' : 'No tasks for this day.')]));
+      const dayTasks = [...tasks.sortOpen(tasks.remindersOn(date), now), ...tasks.doneOn(date)];
+      todoList.replaceChildren(...(dayTasks.length
+        ? dayTasks.map((t) => widgets.todoItem(t, { now }))
+        : [h('li.muted.note-empty', d.isPast ? 'No to-dos were ticked off this day.' : d.isToday ? 'No reminders today. Open to-dos are on the Today tab.' : 'No reminders yet.')]));
+      todoForm.hidden = d.isPast;
+      todoInput.placeholder = d.isToday ? 'Add a to-do' : 'Remind me about… (that morning)';
 
       noteList.replaceChildren(...(d.notes.length
         ? d.notes.map((n) => widgets.noteItem(date, n))

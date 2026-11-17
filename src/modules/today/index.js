@@ -1,5 +1,8 @@
 // Today: press "Begin day" and count down to home time (time at work, Settings).
 // "Worked" is counted work (time at work minus the unpaid break).
+// Milestones get a riso ink stamp (halfway, home time, day done): it thumps on when you
+// reach one while the app is open, and simply sits there after a reload.
+// A line counts down to the last workday of the week ("Friday in 2 days").
 export default {
   id: 'today',
   title: 'Today',
@@ -7,7 +10,7 @@ export default {
   ink: 'pink',
   span: 'full',
 
-  mount(el, { h, worklog, time, nav, onTick, onData }) {
+  mount(el, { h, worklog, settings, time, nav, onTick, onData }) {
     const { fmtDuration: dur, fmtTime } = time;
     const { KINDS } = worklog;
 
@@ -22,9 +25,15 @@ export default {
     const left = h('dd');
     const finish = h('dd');
     const actions = h('div.actions');
+    const friday = h('div.today-friday');
+    const stampBig = h('span.stamp-big');
+    const stampSmall = h('span.stamp-small');
+    const stamp = h('div.stamp', { hidden: true, 'aria-hidden': 'true' }, stampBig, stampSmall);
+    stamp.addEventListener('animationend', () => stamp.classList.remove('is-new'));
 
     el.append(
-      h('div.today-top', h('div', headline, sub), pct),
+      stamp,
+      h('div.today-top', h('div', headline, sub, friday), pct),
       h('div.bar', h('div.bar-track'), fill, marker),
       h('div.bar-labels', startLbl, endLbl),
       h('dl.stats',
@@ -44,9 +53,44 @@ export default {
       actions.replaceChildren(...build());
     };
 
+    // "Friday in 2 days" — counts to the last workday set in Settings.
+    function fridayLine(now) {
+      const workdays = settings.get().workdays;
+      const today = time.weekdayIndex(now);
+      const last = workdays.lastIndexOf(true);
+      if (last < 0) return '';
+      if (today > last) return 'Weekend. Enjoy it.';
+      const name = time.addDays(now, last - today).toLocaleDateString([], { weekday: 'long' });
+      if (today === last) return `It's ${name}!`;
+      return last - today === 1 ? `${name} tomorrow.` : `${name} in ${last - today} days.`;
+    }
+
+    function stampFor(d) {
+      if (d.state === 'ended') return { key: 'ended', ink: 'ink', big: 'Day done', small: dur(d.workedMs) };
+      if (d.state === 'overtime') return { key: 'home', ink: 'pink', big: 'Home time', small: fmtTime(d.finish) };
+      if (d.state === 'working' && d.pct >= 0.5) return { key: 'half', ink: 'blue', big: 'Halfway', small: `${dur(d.workedMs)} in` };
+      return null;
+    }
+
+    let lastStamp = null;   // null until the first render, so a reload doesn't replay the thump
+    function renderStamp(d) {
+      const s = stampFor(d);
+      const key = s?.key ?? '';
+      stamp.hidden = !s;
+      if (s) {
+        stampBig.textContent = s.big;
+        stampSmall.textContent = s.small;
+        stamp.dataset.ink = s.ink;
+        if (lastStamp !== null && key !== lastStamp) stamp.classList.add('is-new');
+      }
+      lastStamp = key;
+    }
+
     const render = (now = new Date()) => {
       const d = worklog.dayStats(now, now);
       el.dataset.state = d.state;
+      friday.textContent = fridayLine(now);
+      renderStamp(d);
       const pctNum = Math.round(d.pct * 100);
       fill.style.width = marker.style.left = `${d.pct * 100}%`;
       marker.dataset.edge = d.pct < 0.04 ? 'start' : d.pct > 0.96 ? 'end' : '';

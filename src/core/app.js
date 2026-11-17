@@ -3,6 +3,8 @@
 import * as store from './store.js';
 import * as settings from './settings.js';
 import * as worklog from './worklog.js';
+import * as tasks from './tasks.js';
+import { initReminders, notifyState, enableNotify } from './reminders.js';
 import * as time from './time.js';
 import * as nav from './nav.js';
 import { onTick } from './clock.js';
@@ -19,6 +21,8 @@ const ctxFor = (mod) => ({
   h,          // element builder (core/dom.js)
   settings,   // get() / set(patch) / dayLengthMs()
   worklog,    // day records + dayStats/weekStats + actions
+  tasks,      // to-dos: open/done lists, reminders, actions
+  reminders: { notifyState, enableNotify },   // system notification permission
   time,       // date helpers and formatters
   nav,        // go(view, param) / current() / onChange(fn)
   widgets,    // shared UI pieces: noteItem(date, note)
@@ -106,7 +110,6 @@ function showView({ view }) {
 async function boot() {
   initPwa();
   await store.loadStore();
-  worklog.carryOver(new Date());   // unfinished to-dos move to today
   nav.setDefault(allViews()[0].id);
 
   const views = allViews().map((v) =>
@@ -120,9 +123,7 @@ async function boot() {
   showView(nav.current());
   nav.onChange(showView);
 
-  // After midnight, unfinished to-dos move on to the new day.
-  let day = time.dateKey(new Date());
-  onTick((now) => { if (time.dateKey(now) !== day) { day = time.dateKey(now); worklog.carryOver(now); } });
+  initReminders();   // pop-ups for to-do reminders
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') openDrawer(false);

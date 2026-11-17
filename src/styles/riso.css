@@ -289,6 +289,8 @@ body::after {
 .cal-fill { position: absolute; inset: 0 auto 0 0; background: var(--blue); mix-blend-mode: multiply; }
 .cal-foot { display: flex; justify-content: space-between; gap: 4px; font-size: 11px; font-weight: 700; margin-top: auto; white-space: nowrap; }
 .cal-notes { color: var(--green); }
+.cal-icons { display: inline-flex; align-items: center; gap: 4px; }
+.cal-done { color: var(--ink); background: rgba(255, 108, 47, .35); padding: 0 2px; border-radius: 2px; }
 .cal-cell.is-outside { opacity: .35; }
 .cal-cell.state-off, .cal-cell.state-missed, .cal-cell.state-leave { border-style: dashed; }
 .cal-cell.state-off .cal-bar, .cal-cell.state-missed .cal-bar, .cal-cell.state-leave .cal-bar { visibility: hidden; }
@@ -309,7 +311,7 @@ body::after {
 /* ───────── To-do ───────── */
 .todo-list { list-style: none; margin: 12px 0 0; padding: 0; }
 .todo {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center;
   padding: 9px 0; border-top: 2px dashed rgba(31, 42, 68, .35);
 }
 .todo:first-child { border-top: 0; }
@@ -319,7 +321,29 @@ body::after {
 .todo-check input:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
 .todo-text { overflow-wrap: anywhere; }
 .todo.is-done .todo-text { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 2px; }
-.todo-from { font-size: 11px; color: var(--muted); white-space: nowrap; text-transform: uppercase; letter-spacing: .06em; }
+.todo-body { display: grid; gap: 4px; min-width: 0; }
+.todo-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 11px; color: var(--muted); }
+.todo-meta .sep { opacity: .5; }
+.todo-more { padding: 8px 0; border-top: 2px dashed rgba(31, 42, 68, .35); }
+.todo-edit { display: grid; gap: 8px; min-width: 0; }
+.todo-edit-row, .todo-add-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.todo-edit-row .input, .todo-add-row .input { width: auto; flex: 1 1 140px; }
+.todo-add { display: grid; gap: 10px; }
+.todo-add + .field-hint { margin-top: 8px; }
+.notify-row { margin: 6px 0 4px; }
+.todo-area { margin-top: 12px; }
+.todo-area .result-day + .result-day { margin-top: 16px; }
+
+/* reminder bell (ink outline, orange fill) and chip */
+.bell {
+  display: inline-block; width: 12px; height: 12px; flex: none; vertical-align: -1px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1.6c-2.5 0-4.2 1.9-4.2 4.5v2.8L2 11.6h12l-1.8-2.7V6.1c0-2.6-1.7-4.5-4.2-4.5z' fill='%23ff6c2f' stroke='%231f2a44' stroke-width='1.5' stroke-linejoin='round'/%3E%3Cpath d='M6.2 13.3a1.9 1.9 0 0 0 3.6 0' fill='none' stroke='%231f2a44' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.remind-chip {
+  display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+  font-size: 11px; font-weight: 700; color: var(--ink); background: rgba(255, 108, 47, .2); padding: 2px 6px; border-radius: 2px;
+}
+.remind-chip.is-due { background: var(--pink); }
 .todo-list .note-empty { padding: 4px 0; }
 
 /* ───────── Tags & search ───────── */
@@ -367,6 +391,57 @@ table.sheet { width: 100%; border-collapse: collapse; font-size: 13px; min-width
 .sheet-totals { margin: 14px 0 16px; font-size: 15px; }
 .sheet-totals strong { font: 800 26px/1 var(--font-display); letter-spacing: -.02em; }
 
+/* ───────── Stamps & milestones (Today) ───────── */
+:root {
+  /* worn-ink texture: speckled holes, like a rubber stamp that didn't print evenly */
+  --stamp-wear: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='w'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -4 2.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23w)'/%3E%3C/svg%3E");
+}
+.stamp {
+  --stamp-ink: var(--ink);
+  position: absolute; top: 12px; right: 24px; z-index: 2; pointer-events: none;
+  display: grid; justify-items: center; gap: 4px; padding: 8px 14px 7px;
+  color: var(--stamp-ink); border: 3px solid currentColor; border-radius: 8px;
+  box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px currentColor;   /* double ring */
+  transform: rotate(-8deg); mix-blend-mode: multiply; opacity: .9;
+  -webkit-mask-image: var(--stamp-wear); mask-image: var(--stamp-wear);
+  -webkit-mask-size: 180px; mask-size: 180px;
+}
+.stamp[data-ink='pink'] { --stamp-ink: var(--pink); }
+.stamp[data-ink='blue'] { --stamp-ink: var(--blue); }
+.stamp-big { font: 800 22px/1 var(--font-display); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+.stamp-small { font: 700 10px/1 var(--font-mono); text-transform: uppercase; letter-spacing: .16em; white-space: nowrap; }
+.stamp.is-new { animation: stamp-thump .6s cubic-bezier(.2, .9, .3, 1.3) both; }
+@keyframes stamp-thump {
+  0% { opacity: 0; transform: rotate(-18deg) scale(2.4); }
+  55% { opacity: .95; transform: rotate(-7deg) scale(.92); }
+  75% { transform: rotate(-8.6deg) scale(1.04); }
+  100% { opacity: .9; transform: rotate(-8deg) scale(1); }
+}
+.today-friday {
+  display: inline-block; margin-top: 12px; padding: 4px 7px; border-radius: 2px;
+  font: 700 11px/1 var(--font-mono); text-transform: uppercase; letter-spacing: .12em;
+  background: var(--yellow); color: var(--ink); mix-blend-mode: multiply; transform: rotate(-1deg);
+}
+.today-friday:empty { display: none; }
+
+/* ───────── Reminder pop-ups ───────── */
+.toasts {
+  position: fixed; z-index: 30; bottom: 16px; right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 12px; width: min(360px, calc(100vw - 32px));
+}
+.toast {
+  background: var(--paper); border: 2px solid var(--ink); border-radius: var(--radius);
+  box-shadow: 6px 6px 0 var(--orange); padding: 14px 16px; animation: toast-in .3s ease both;
+}
+.toast-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.toast-label {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 2px;
+  font: 700 11px/1 var(--font-mono); text-transform: uppercase; letter-spacing: .14em; background: var(--orange); color: var(--ink);
+}
+.toast-text { margin: 10px 0 4px; font: 800 20px/1.15 var(--font-display); overflow-wrap: anywhere; }
+.toast-when { margin: 0 0 12px; font-size: 12px; color: var(--muted); }
+@keyframes toast-in { from { transform: translateY(12px); opacity: 0; } }
+
 /* ───────── Settings drawer ───────── */
 .scrim { position: fixed; inset: 0; background: rgba(31, 42, 68, .25); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 10; }
 .drawer {
@@ -402,9 +477,11 @@ table.sheet { width: 100%; border-collapse: collapse; font-size: 13px; min-width
   .cal-foot span:first-child { display: none; }
   .note-list li { grid-template-columns: 62px 1fr auto; gap: 8px; }
   .todo { gap: 8px; }
+  .stamp { top: 8px; right: 14px; padding: 6px 10px 5px; }
+  .stamp-big { font-size: 17px; }
   .sheet-range { margin-left: 0; padding-bottom: 0; width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; }
+  * { transition: none !important; animation: none !important; }
 }

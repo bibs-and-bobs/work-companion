@@ -12,22 +12,24 @@ It is meant to grow one feature at a time and look finished at every stage.
 
 ---
 
-## What it does today (v0.5)
+## What it does today (v0.6)
 
 | Tab | Card | What it shows |
 |---|---|---|
-| **Today** | **Today** | Press **Begin day** to start the countdown to **home time** (default 9h at work). Shows time to go, % done, a progress bar, and Worked / Home in / Home at. **Worked** counts 8h for a full day (9h minus the unpaid break). **End day** logs the finish. **Resume** undoes it. |
-| | **To-do** | Today's tasks. Tick to finish, pencil to edit, × to delete. **Unfinished tasks move to the next day by themselves** (labelled "from Mon…"); finished ones stay on the day they were done. |
+| **Today** | **Today** | Press **Begin day** to start the countdown to **home time** (default 9h at work). Shows time to go, % done, a progress bar, and Worked / Home in / Home at. **Worked** counts 8h for a full day (9h minus the unpaid break). **End day** logs the finish. **Resume** undoes it. A riso **ink stamp** lands at Halfway, Home time and Day done, and a line counts down to the end of the week ("Friday in 2 days"). |
+| | **To-do** | A short preview: open to-dos (due reminders first, max 5), quick add, tick / edit / delete, "Show done" for today's ticked ones, link to the To-do tab. **Open to-dos always belong to today** until ticked. |
 | | **Notes** | Type a note and press Enter (or `Ctrl+N` from anywhere). It is timestamped and saved to today's record. Notes stay hidden, with a "Show" toggle. Each note can be **edited** (pencil) or deleted (×). Write `#tags` in a note; click a tag to open the Notes tab filtered by it. |
 | | **This week** | Week % done, hours worked/left, a bar per day. Click a day to open it in the Calendar. A green dot means that day has notes. |
-| **Calendar** | **Calendar** | Month grid with hours worked, note counts and day-type tags. Select a day to fix its start/end times (for example if you forgot to press Begin day), set its **day type** (public holiday, vacation, sick day, half day), optionally through a later date to mark a whole vacation week, and manage its tasks and notes. Tasks can be planned on future days. |
+| **Calendar** | **Calendar** | Month grid with hours worked, note counts and day-type tags. Select a day to fix its start/end times (for example if you forgot to press Begin day), set its **day type** (public holiday, vacation, sick day, half day), optionally through a later date to mark a whole vacation week, and manage its notes. Its **To-dos** section shows reminders set for that day and to-dos ticked that day; adding one on a future day creates a reminder for that morning. Cells show a **bell** for reminders and **✓n** for to-dos ticked that day. |
 | | **Timesheet** | Hours for this week / last week / this month / last month as a table, with a total. **Copy summary** (plain text) and **Download CSV**, each optionally with notes. |
+| **To-do** | **All to-dos** | Add a to-do with an optional reminder (date and/or time). Filters: Open, Reminders, Done (history grouped by the day ticked, links to the Calendar). Each row shows **Added …** and **Done …** times and the reminder. Option to allow Windows notifications. |
+| *(anywhere)* | **Reminder pop-ups** | When a reminder is due a pop-up appears bottom-right: Done, Snooze 10 min, Open. Also a Windows notification if allowed. Works while the app is open; missed reminders pop when it opens next. |
 | **Notes** | **Search notes** | Search all notes (matches are highlighted), filter by `#tag` chips, edit or delete in place, click a day to open it in the Calendar. |
 | *(drawer)* | **Settings** | Time at work (default 9h), unpaid break (default 1h), workdays, and **Your data**: save to a file on this PC (automatic), plus manual backup / restore. |
 | *(masthead)* | **Reconnect file** | Appears after a browser restart when a linked file needs the browser's permission again (one click). |
 | *(masthead)* | **Install app** | Appears when the browser can install it as a desktop app (Chrome / Edge). |
 
-Keyboard: `Ctrl+1` Today, `Ctrl+2` Calendar, `Ctrl+3` Notes, `Ctrl+N` new note, `Esc` close Settings.
+Keyboard: `Ctrl+1` Today, `Ctrl+2` Calendar, `Ctrl+3` Notes, `Ctrl+4` To-do, `Ctrl+N` new note, `Esc` close Settings.
 
 ## Run it
 
@@ -92,7 +94,9 @@ src/core/                 Shared framework. Modules never import these directly;
   store.js                Saved state (one JSON object, namespaced) + versioned migrations + backup + which copy wins (browser vs linked file)
   filesync.js             Linked file on the PC: file handle, permission, debounced writes (talks to the file only)
   settings.js             User settings (day length, workdays)
-  worklog.js              Day records + ALL hour maths (dayStats, weekStats, rangeStats) + actions (times, day type, notes, to-dos, carry-over)
+  worklog.js              Day records + ALL hour maths (dayStats, weekStats, rangeStats) + actions (times, day type, notes)
+  tasks.js                To-dos: one list, not tied to days; reminders (due, snooze, makeRemind)
+  reminders.js            Reminder pop-ups + system notifications; checks every 5s while the app is open
   time.js                 Date helpers and formatters (pure)
   nav.js                  Hash router: #/<view>/<param>, e.g. #/calendar/2026-11-11
   clock.js                One shared 1-second tick
@@ -106,6 +110,7 @@ src/modules/
   today/  tasks/  notes/  week/    (Today tab)
   calendar/  timesheet/              (Calendar tab)
   search/                            (Notes tab)
+  tasklist/                          (To-do tab)
 ```
 
 ### Layers (top depends on bottom, never the reverse)
@@ -127,7 +132,7 @@ Nothing keeps its own copy of hours or notes.
 ```jsonc
 // the saved object (localStorage key "work-companion", or companion.json in Electron)
 {
-  "_version": 2,
+  "_version": 3,
   "_lastBackup": "2026-11-11T16:20:00.000Z",  // set when a backup is downloaded
   "_savedAt": "2026-11-11T16:21:00.000Z",     // set on every save; decides which copy is newest
   "settings": { "dayLengthMin": 540, "breakMin": 60, "workdays": [true, true, true, true, true, false, false] },
@@ -136,19 +141,31 @@ Nothing keeps its own copy of hours or notes.
       "start": "2026-11-11T07:30:00.000Z",   // Begin day (null = not started)
       "end": null,                            // End day (null = still working)
       "notes": [{ "id": "mh2x9k3a", "t": "2026-11-11T08:05:00.000Z", "text": "Standup #meeting", "e": "2026-11-11T09:00:00.000Z" }],  // e = last edited (optional)
-      "todos": [{ "id": "k3j2h1xz", "text": "Send invoice", "done": null, "from": "2026-11-09" }],   // done = ISO time when ticked; from = day first planned (optional)
       "kind": "vacation"                      // optional: holiday | vacation | sick | half
     }
   },
+  "tasks": [{                                // to-dos, see "To-dos and reminders" below
+    "id": "mh2x9k3a", "text": "Call dentist",
+    "created": "2026-11-17T13:20:00.000Z",   // when it was added
+    "done": null,                             // ISO time of the LAST tick; null while open
+    "remind": { "date": "2026-11-18", "time": "15:00" },  // optional; time optional (date only = 9:00)
+    "reminded": "2026-11-18T14:00:00.000Z"    // the due moment already shown, so it pops once
+  }],
   "mod:<id>": { }                             // a module's private data, if it needs any
 }
 ```
 
 - Days are keyed by local date `YYYY-MM-DD` (`time.dateKey`). Timestamps are ISO strings.
-- Optional fields (`todos`, `kind`) are left out when empty. A day with nothing in it (no start, notes, to-dos or kind) is deleted from the log.
+- Optional fields (`kind`) are left out when empty. A day with nothing in it (no start, notes or kind) is deleted from the log.
 - Tags are not stored: they are `#words` inside note text, found with `widgets.tagsOf`.
-- To-do carry-over: `worklog.carryOver(now)` moves open to-dos from earlier days to today (finished ones stay as that day's history). It runs at startup and after midnight (see `core/app.js`), and saves only if something moved. Tasks planned on future days stay there until that day passes.
-- v0.5 only added optional fields, so no migration was needed (`_version` is still 2).
+
+### To-dos and reminders (`core/tasks.js`, `core/reminders.js`)
+
+- To-dos are **one list, not stored on days**. An open to-do always belongs to *today* (shows on the Today card). A ticked to-do belongs to the day of its `done` time: that's where the Calendar and the Done history show it.
+- `done` holds only the **last** tick: unticking sets it to null, ticking again stamps the new time. `created` never changes.
+- Reminder: `remind.date` (+ optional `remind.time`). Date only = due at 9:00 that day (`DAY_REMINDER_TIME`). A time without a date is resolved when saved to the next time it comes round (`makeRemind`).
+- `reminders.js` checks every 5 s (and at startup) for open to-dos whose due time has passed and whose `reminded` differs from that due time, shows a pop-up (+ system notification if allowed) and stores `reminded`. Editing or snoozing a reminder clears `reminded`, so it pops again at the new time. A closed web app can't be woken, so pop-ups need the app open; missed ones show on next open.
+- Order of open to-dos everywhere: due reminders, then upcoming reminders, then the rest by `created` (`sortOpen`).
 
 ### Hours: time at work vs counted work
 
@@ -210,9 +227,11 @@ export default {
 | key | what |
 |---|---|
 | `h` | element builder: `h('button.btn', { onclick }, 'Label')` |
-| `worklog` | `KINDS`, `getDay`, `dayStats`, `weekStats`, `rangeStats`, `beginDay`, `endDay`, `resumeDay`, `setTimes`, `clearTimes`, `setKind`, `setKindRange`, `addNote`, `editNote`, `deleteNote`, `allNotes`, `addTodo`, `toggleTodo`, `editTodo`, `deleteTodo`, `carryOver` |
+| `worklog` | `KINDS`, `getDay`, `dayStats`, `weekStats`, `rangeStats`, `beginDay`, `endDay`, `resumeDay`, `setTimes`, `clearTimes`, `setKind`, `setKindRange`, `addNote`, `editNote`, `deleteNote`, `allNotes` |
+| `tasks` | `list`, `get`, `open`, `doneOn(date)`, `remindersOn(date)`, `dueAt`, `sortOpen`, `due`, `makeRemind`, `add(text, {remind})`, `toggle`, `edit(id, {text, remind})`, `remove`, `snooze` |
+| `reminders` | `notifyState()` (unsupported / default / granted / denied), `enableNotify()` |
 | `settings` | `get()`, `set(patch)`, `dayLengthMs()` (time at work), `workLengthMs()` (counted work) |
-| `widgets` | `noteItem(date, note, {query})` and `todoItem(date, todo)`: editable rows (pencil to edit, × to delete). Use them wherever notes / to-dos are listed. `richText(text, {query})` renders `#tags` as links and highlights a search; `tagsOf(text)`; `dayLabel(key)`. |
+| `widgets` | `noteItem(date, note, {query})` and `todoItem(task, {compact, now})`: editable rows (pencil to edit, × to delete; the to-do editor also sets the reminder). Use them wherever notes / to-dos are listed. `remindChip(task)`, `whenLabel(date)` ("Today", "Tomorrow", "Mon, 9 Nov"), `richText(text, {query})` renders `#tags` as links and highlights a search; `tagsOf(text)`; `dayLabel(key)`. |
 | `time` | `dateKey`, `fromKey`, `addDays`, `startOfWeek`, `atTime`, `toHHMM`, `fmtDuration`, `fmtTime`, `fmtDate`, `DAY_NAMES`, … |
 | `nav` | `go(view, param)`, `current()`, `onChange(fn)` |
 | `onTick(fn)` | called every second with `now`; returns unsubscribe |
@@ -234,7 +253,7 @@ A module that throws while mounting only breaks its own card.
 ### Changing saved data safely
 
 If the shape of saved data changes, bump `VERSION` in `core/store.js` and add a migration function. Never break someone's existing log.
-History: v1 had fixed per-weekday start/end times. v2 replaced them with Begin day + day length, and kept the workday on/off flags.
+History: v1 had fixed per-weekday start/end times. v2 replaced them with Begin day + day length, and kept the workday on/off flags. v3 moved to-dos out of the day records into `tasks` (created time recovered from the id, which starts with the creation time in base 36).
 
 ---
 
@@ -260,6 +279,8 @@ App icon: `src/icons/icon.svg` (pink + blue overprint with a yellow off-register
 10. Visible keyboard focus (blue outline) on everything clickable.
 11. No visible scrollbars (hidden globally in `riso.css`). Scrolling still works. Keep tables and lists that scroll sideways obviously cut off at the edge so people know there is more.
 
+**Stamps** (`.stamp` in `riso.css`): double-ring rubber stamp, rotated −8°, multiply blend, a worn-ink mask (`--stamp-wear`), and a short "thump" animation only when a milestone is reached live (not on reload). Ink: blue = Halfway, pink = Home time, ink = Day done.
+
 Meaning of inks so far: **pink** = today / now, **blue** = done / week / timesheet, **yellow** = calendar / highlight / days off, **green** = notes and tags, **orange** = to-do.
 
 ---
@@ -284,6 +305,7 @@ Code: MIT (`LICENSE`). Bundled fonts: SIL Open Font License, see `NOTICE.md`.
 
 ## Changelog
 
+- **v0.6**: To-dos rebuilt: one list where open to-dos always belong to today and ticked ones to the day ticked, with **Added** and **Done** times (only the last tick counts). Optional **reminders** (date and/or time) with pop-ups, snooze and Windows notifications. New **To-do tab** (Open / Reminders / Done history). Calendar shows a bell for reminders and ✓n for to-dos done. **Ink stamps** at Halfway / Home time / Day done, and a "Friday in N days" line. Data migration v2→v3.
 - **v0.5.1**: Scrollbars hidden everywhere.
 - **v0.5**: Day types (public holiday, vacation, sick, half day), including marking a run of days; they change the week total correctly. Daily to-do list with automatic carry-over, plus planning on future days from the Calendar. Notes tab with search and `#tag` filtering. Timesheet (week/month) with copy-as-text and CSV download. Fixed: the Calendar's day header printed "null" on days with no start time.
 - **v0.4**: Notes can be edited (Today and Calendar, shared `widgets.noteItem`). Day is now "time at work" (9h, the countdown to home) with an unpaid break (1h) so a full day counts 8h worked. Optional automatic saving to a real file on the PC (File System Access API) with Reconnect, newest-copy-wins and safe handling of foreign files. Settings fields: time at work, unpaid break.
@@ -298,7 +320,8 @@ Code: MIT (`LICENSE`). Bundled fonts: SIL Open Font License, see `NOTICE.md`.
 - Flex-time balance (running +/- against the 8h target)
 - Countdown in the window title and taskbar badge; notification at home time
 - Floating mini countdown window (Document Picture-in-Picture)
-- Riso stamps at milestones, on-time streak, night-print theme
+- On-time streak, weekly poster, night-print theme
+- Repeating reminders (every Monday, every day)
 - Google Calendar meetings on the day bar
 - Tray icon / always-on-top mini mode showing time left
 - Edit a note's time; undo for deleted notes

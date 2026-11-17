@@ -1,6 +1,7 @@
 // Small UI pieces shared by several modules (offered to them through ctx.widgets).
 import { h } from './dom.js';
 import * as worklog from './worklog.js';
+import * as tasks from './tasks.js';
 import * as nav from './nav.js';
 import { fmtTime, dateKey, fromKey } from './time.js';
 
@@ -90,27 +91,78 @@ export function noteItem(date, note, { query = '' } = {}) {
   });
 }
 
-// One to-do row: checkbox, text, and edit / delete. Shows where a carried-over task started.
-export function todoItem(date, todo) {
-  const key = dateKey(date);
+// ── To-dos ──
+const shortDate = (d) => d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+
+// "Today", "Tomorrow", "Yesterday" or "Mon, 9 Nov".
+export function whenLabel(d, now = new Date()) {
+  const diff = Math.round((new Date(d).setHours(0, 0, 0, 0) - new Date(now).setHours(0, 0, 0, 0)) / 86_400_000);
+  return diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : diff === -1 ? 'Yesterday' : shortDate(d);
+}
+
+// Reminder label with a bell, e.g. "Tomorrow 15:00". Pink when it is due and still open.
+export function remindChip(task, now = new Date()) {
+  const at = tasks.dueAt(task);
+  if (!at) return null;
+  const isDue = !task.done && at <= now;
+  return h(`span.remind-chip${isDue ? '.is-due' : ''}`, { title: isDue ? 'Reminder due' : 'Reminder' },
+    h('span.bell', { 'aria-hidden': 'true' }),
+    `${whenLabel(at, now)}${task.remind.time ? ` ${fmtTime(at)}` : ''}`);
+}
+
+// Mid-sentence form: "Added today, 2:20 PM" / "Done Mon, 9 Nov, 11:00 AM".
+const stampText = (iso, now) => {
+  const d = new Date(iso);
+  const day = whenLabel(d, now);
+  return `${/^(Today|Tomorrow|Yesterday)$/.test(day) ? day.toLowerCase() : day}, ${fmtTime(d)}`;
+};
+
+// One to-do row. compact: just the reminder or "since …" (Today card).
+// Full: "Added …", "Done …" and the reminder (To-do tab, Calendar).
+// The pencil edits the text and the reminder; Enter saves, Esc cancels.
+export function todoItem(task, { compact = false, now = new Date() } = {}) {
   return editableRow({
-    li: h(`li.todo${todo.done ? '.is-done' : ''}`),
-    view: (startEdit) => [
-      h('label.todo-check',
-        h('input', { type: 'checkbox', checked: !!todo.done, 'aria-label': todo.text, onchange: () => worklog.toggleTodo(date, todo.id) }),
-        h('span.todo-text', todo.text)),
-      todo.from && todo.from !== key ? h('span.todo-from', `from ${dayLabel(todo.from)}`) : h('span'),
-      h('span.note-actions', pencil(startEdit, 'task'), cross(() => worklog.deleteTodo(date, todo.id), 'task')),
-    ],
+    li: h(`li.todo${task.done ? '.is-done' : ''}${compact ? '.is-compact' : ''}`),
+    view: (startEdit) => {
+      const created = new Date(task.created);
+      const meta = compact
+        ? [remindChip(task, now) ?? (dateKey(created) !== dateKey(now) ? `since ${shortDate(created)}` : null)]
+        : [`Added ${stampText(task.created, now)}`, task.done ? `Done ${stampText(task.done, now)}` : null, remindChip(task, now)];
+      const parts = meta.filter(Boolean);
+      return [
+        h('label.todo-check',
+          h('input', { type: 'checkbox', checked: !!task.done, 'aria-label': task.text, onchange: () => tasks.toggle(task.id) }),
+          h('span.todo-body',
+            h('span.todo-text', richText(task.text)),
+            parts.length ? h('span.todo-meta', parts.flatMap((p, i) => (i ? [h('span.sep', '·'), p] : [p]))) : null)),
+        h('span.note-actions', pencil(startEdit, 'task'), cross(() => tasks.remove(task.id), 'task')),
+      ];
+    },
     edit: (cancel) => {
+      const date = h('input.input', { type: 'date', value: task.remind?.date ?? '', 'aria-label': 'Reminder date' });
+      const timeIn = h('input.input', { type: 'time', value: task.remind?.time ?? '', 'aria-label': 'Reminder time' });
       const save = () => {
-        const v = input.value.trim();
-        if (v && v !== todo.text) worklog.editTodo(date, todo.id, v); else cancel();
+        const text = input.value.trim();
+        const remind = tasks.makeRemind({ date: date.value, time: timeIn.value });
+        const same = text === task.text && JSON.stringify(remind) === JSON.stringify(task.remind ?? null);
+        if (!text || same) return cancel();
+        tasks.edit(task.id, { text, remind });
       };
-      const input = editInput(todo.text, 'Edit task', save, cancel);
+      const input = editInput(task.text, 'Edit task', save, cancel);
+      for (const el of [date, timeIn]) el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') save();
+        if (e.key === 'Escape') { e.stopPropagation(); cancel(); }
+      });
       return {
         input,
-        nodes: [input, h('span'), h('span.note-actions', h('button.link', { onclick: save }, 'Save'), h('button.link', { onclick: cancel }, 'Cancel'))],
+        nodes: [
+          h('div.todo-edit',
+            input,
+            h('div.todo-edit-row',
+              h('span.field-label', 'Remind me'), date, timeIn,
+              h('button.link', { onclick: () => { date.value = ''; timeIn.value = ''; } }, 'No reminder'))),
+          h('span.note-actions', h('button.link', { onclick: save }, 'Save'), h('button.link', { onclick: cancel }, 'Cancel')),
+        ],
       };
     },
   });

@@ -5,11 +5,11 @@
 //       start: ISO string | null,   // set by "Begin day" (or edited in Calendar)
 //       end:   ISO string | null,   // set by "End day"; null while working
 //       notes: [{ id, t: ISO string, text, e?: ISO string }],             // e = last edited
-//       todos: [{ id, text, done: ISO string | null, from?: "YYYY-MM-DD" }], // from = day it was first planned
 //       kind:  "holiday" | "vacation" | "sick" | "half"                   // optional day type
 //     }
 //   }
 //   Optional fields are left out when empty, and a day with nothing in it is removed.
+//   To-dos are not stored here: see core/tasks.js.
 //
 // Everything that shows hours (Today, Week, Calendar, Timesheet) goes through dayStats(),
 // so the rules below live in exactly one place.
@@ -35,7 +35,7 @@ export const KINDS = {
 
 const NS = 'worklog';
 const all = () => store.get(NS, {});
-const emptyDay = () => ({ start: null, end: null, notes: [], todos: [], kind: null });
+const emptyDay = () => ({ start: null, end: null, notes: [], kind: null });
 const newId = (now) => `${now.getTime().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 // Removes empty optional fields and drops a day that holds nothing.
@@ -44,15 +44,13 @@ function tidy(log, key) {
   if (!day) return;
   if (!day.start) day.end = null;
   if (!day.kind) delete day.kind;
-  if (!day.todos?.length) delete day.todos;
-  if (!day.start && !day.notes.length && !day.todos && !day.kind) delete log[key];
+  if (!day.start && !day.notes.length && !day.kind) delete log[key];
 }
 
 function applyTo(log, date, fn) {
   const key = dateKey(date);
   const day = { ...emptyDay(), ...log[key] };
   day.notes = day.notes ?? [];
-  day.todos = day.todos ?? [];
   fn(day);
   log[key] = day;
   tidy(log, key);
@@ -121,45 +119,6 @@ export function allNotes() {
   return out.sort((a, b) => b.note.t.localeCompare(a.note.t));
 }
 
-// ── Actions: to-dos ──
-// A to-do lives on one day. Open ones left on past days are moved to today by carryOver().
-export function addTodo(text, date = new Date(), now = new Date()) {
-  const clean = text.trim();
-  if (!clean) return;
-  update(date, (d) => { d.todos.push({ id: newId(now), text: clean, done: null }); });
-}
-export const toggleTodo = (date, id, now = new Date()) => update(date, (d) => {
-  const t = d.todos.find((x) => x.id === id);
-  if (t) t.done = t.done ? null : now.toISOString();
-});
-export const editTodo = (date, id, text) => {
-  const clean = text.trim();
-  if (!clean) return;
-  update(date, (d) => { const t = d.todos.find((x) => x.id === id); if (t) t.text = clean; });
-};
-export const deleteTodo = (date, id) => update(date, (d) => { d.todos = d.todos.filter((t) => t.id !== id); });
-
-// Moves open to-dos from earlier days to today (finished ones stay as that day's history).
-// Saves only if something moved. Returns how many were moved. Call at startup and after midnight.
-export function carryOver(now = new Date()) {
-  const log = all();
-  const todayKey = dateKey(now);
-  const moving = [];
-  for (const key of Object.keys(log).sort()) {
-    if (key >= todayKey) continue;
-    const todos = log[key].todos ?? [];
-    const open = todos.filter((t) => !t.done);
-    if (!open.length) continue;
-    moving.push(...open.map((t) => ({ ...t, from: t.from ?? key })));
-    log[key].todos = todos.filter((t) => t.done);
-    tidy(log, key);
-  }
-  if (!moving.length) return 0;
-  applyTo(log, now, (d) => { d.todos = [...moving, ...d.todos]; });
-  store.set(NS, log);
-  return moving.length;
-}
-
 // ── Derived numbers ──
 // state: 'idle'     workday today, not begun yet
 //        'working'  begun, before home time
@@ -184,7 +143,6 @@ export function dayStats(date, now = new Date()) {
     isToday: key === todayKey, isPast: key < todayKey, isFuture: key > todayKey,
     isWorkday: s.workdays[weekdayIndex(date)],
     notes: rec?.notes ?? [],
-    todos: rec?.todos ?? [],
   };
 
   if (rec?.start) {

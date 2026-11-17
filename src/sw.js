@@ -1,7 +1,7 @@
 // Offline support. Network first (so updates show up straight away),
 // falling back to the last cached copy when offline. Every same-origin file
 // is cached as it's fetched, so there's no file list to maintain.
-const CACHE = 'work-companion-v1';
+const CACHE = 'work-companion-v2';
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', 'index.html'])).then(() => self.skipWaiting()));
@@ -25,4 +25,11 @@ self.addEventListener('fetch', (e) => {
       .catch(() => caches.match(req, { ignoreSearch: true })
         .then((hit) => hit || (req.mode === 'navigate' ? caches.match('index.html') : Response.error()))),
   );
+});
+
+// Clicking a reminder notification brings the app to the front (or opens it).
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    .then((list) => (list[0] ? list[0].focus() : self.clients.openWindow('./#/todo'))));
 });

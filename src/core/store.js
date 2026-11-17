@@ -1,6 +1,7 @@
 // Persistent app state: one JSON object, split into namespaces.
 //   settings  -> core/settings.js
 //   worklog   -> core/worklog.js
+//   tasks     -> core/tasks.js
 //   mod:<id>  -> a module's private data (ctx.ns)
 //   _version, _lastBackup, _savedAt -> bookkeeping
 // Uses the Electron bridge when present, localStorage in a plain browser.
@@ -12,7 +13,7 @@
 import * as fileSync from './filesync.js';
 
 const LS_KEY = 'work-companion';
-const VERSION = 2;
+const VERSION = 3;
 
 const migrations = {
   // v1 -> v2: fixed per-day hours replaced by "Begin day" + day length.
@@ -21,6 +22,22 @@ const migrations = {
     delete d.schedule;
     delete d['mod:today'];
     delete d['mod:week'];
+  },
+  // v2 -> v3: to-dos move out of the day records into one list (core/tasks.js).
+  // `created` is recovered from the id (it starts with the creation time), else the day it sat on.
+  3(d) {
+    const moved = [];
+    for (const [key, rec] of Object.entries(d.worklog ?? {})) {
+      for (const t of rec.todos ?? []) {
+        const ms = parseInt(String(t.id).slice(0, -4), 36);
+        const [y, m, day] = (t.from ?? key).split('-').map(Number);
+        const created = ms > 1e12 && ms < 4e12 ? new Date(ms) : new Date(y, m - 1, day);
+        moved.push({ id: t.id, text: t.text, created: created.toISOString(), done: t.done ?? null });
+      }
+      delete rec.todos;
+      if (!rec.start && !rec.notes?.length && !rec.kind) delete d.worklog[key];
+    }
+    if (moved.length) d.tasks = [...(d.tasks ?? []), ...moved];
   },
 };
 
