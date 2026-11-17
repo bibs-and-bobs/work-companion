@@ -26,7 +26,7 @@ It is meant to grow one feature at a time and look finished at every stage.
 | *(anywhere)* | **Reminder pop-ups** | When a reminder is due a pop-up appears bottom-right: Done, Snooze 10 min, Open. Also a Windows notification if allowed. Works while the app is open; missed reminders pop when it opens next. |
 | **Notes** | **Search notes** | Search all notes (matches are highlighted), filter by `#tag` chips, edit or delete in place, click a day to open it in the Calendar. |
 | *(drawer)* | **Settings** | Time at work (default 9h), unpaid break (default 1h), workdays, **Layout** (Tabs or Widget board), and **Your data**: save to a file on this PC (automatic), plus manual backup / restore. |
-| *(optional)* | **Widget board** | Settings → Layout → **Widget board** puts every card on one free 12-column grid instead of tabs, with a compact masthead, made for a small monitor kept open all day. **Edit layout** (masthead): drag a card to move it, drag its corner to resize it, **×** takes it off the board, **Add widget** puts it back, **Reset** restores the starting layout. Keyboard: focus a card's handle, arrows move, Shift + arrows resize, Esc finishes. Cards push others down when they would overlap; gaps you leave stay. A card with more content than fits scrolls inside and shows a halftone edge at the bottom. Links that open a tab (Week → a day, `Ctrl+2`, a `#tag`) scroll to that widget, or offer to add it if it's not on the board. Under ~700px wide the board stacks the cards in reading order. Switch back to **Tabs** any time; the board is kept for next time. |
+| *(optional)* | **Widget board** | Settings → Layout → **Widget board** puts every card on one free 12-column grid instead of tabs, with a compact masthead, made for a small monitor kept open all day. The board **fits the window height exactly**: rows stretch or shrink so the lowest card ends at the bottom of the window (no page scrolling), and card contents tighten when a card is short. Starts with Today, To-do, This week and Notes on one screen. **Edit layout** (masthead): drag a card to move it, drag its corner to resize it, **×** takes it off the board, **Add widget** puts it back, **Reset** restores the starting layout. Keyboard: focus a card's handle, arrows move, Shift + arrows resize, Esc finishes. Cards push others down when they would overlap; gaps you leave stay. Add widget uses an empty gap if one is big enough, otherwise adds it at the bottom (at most half the board's height, since everything else then shrinks to fit). A card with more content than fits scrolls inside and shows a halftone edge at the bottom. Links that open a tab (Week → a day, `Ctrl+2`, a `#tag`) scroll to that widget, or offer to add it if it's not on the board. Under ~700px wide the board stacks the cards in reading order. Switch back to **Tabs** any time; the board is kept for next time. |
 | *(masthead)* | **Reconnect file** | Appears after a browser restart when a linked file needs the browser's permission again (one click). |
 | *(masthead)* | **Install app** | Appears when the browser can install it as a desktop app (Chrome / Edge). |
 
@@ -143,7 +143,7 @@ Nothing keeps its own copy of hours or notes.
   "settings": { "dayLengthMin": 540, "breakMin": 60, "workdays": [true, true, true, true, true, false, false],
                 "layout": "tabs" },               // "tabs" | "board" (widget board)
   "board": { "items": {                       // widget board positions, see "Widget board" below; absent = defaults
-    "today": { "x": 0, "y": 0, "w": 7, "h": 9 },        // 12 columns; y / h in rows of 40px
+    "today": { "x": 0, "y": 0, "w": 7, "h": 7 },        // 12 columns; y / h in rows (row height fits the window)
     "timesheet": { "x": 0, "y": 29, "w": 12, "h": 10, "hidden": true }
   } },
   "worklog": {
@@ -216,7 +216,9 @@ All hour numbers in the UI come from this one function. Change the rules there, 
 
 - Optional layout (Settings → Layout). **Tabs** is the default and unchanged. The board shows **all** modules from all views on one grid.
 - The card elements are created and mounted **once** (`app.js` keeps them in a `cards` map). Switching layout only moves them between the tab `<main>`s and `<main class="board">`, so nothing remounts and typed text survives.
-- Positions: `board.items[id] = { x, y, w, h, hidden? }`, 12 columns (`COLS`), rows of `--row` (40px) + 16px gap. Min 2×2. Each card gets `--gx/--gy/--gw/--gh` and CSS places it. A module missing from the saved board uses its default from `setBoardDefaults()` in `modules/index.js`; a module with no default goes at the bottom. So **a new module just appears** on existing boards.
+- Positions: `board.items[id] = { x, y, w, h, hidden? }`, 12 columns (`COLS`), rows of `--row` + 14px gap.
+- **Fit to window** (`fit()` in `board-view.js`): `--row = (window height − board top − padding − gaps) / rows used`, where rows used = the lowest visible card's bottom. So `h` is a share of the window height, not pixels. Recomputed on resize, on any layout change and when the masthead changes height; frozen while dragging (refits on drop). Below 14px per row it stops shrinking and the page scrolls. Under 700px wide it's off (stacked layout).
+- Wide boards make cards **size** containers, so `@container (max-height: …)` rules in `riso.css` shrink big numbers and bars and drop secondary lines in short cards. Min 2×2. Each card gets `--gx/--gy/--gw/--gh` and CSS places it. A module missing from the saved board uses its default from `setBoardDefaults()` in `modules/index.js`; a module with no default goes at the bottom. So **a new module just appears** on existing boards.
 - `board.place(items, id, next)` moves/resizes one card and pushes overlapped cards straight down (no auto-compacting, so deliberate gaps stay). Dragging previews live and saves on release.
 - Navigation in board mode: `nav.onChange` calls `reveal(view)`: if none of that view's widgets is on screen it scrolls to the first and flashes it; if they're all hidden it shows a toast offering to add the first one.
 - Cards on the board have a fixed height: content scrolls inside `.card-body` and `.is-clipped` adds a halftone edge when there is more below. Cards are CSS **containers**, so `@container` rules in `riso.css` reflow the inside (e.g. the Calendar stacks its day panel) by the card's own width.
@@ -262,7 +264,7 @@ A module that throws while mounting only breaks its own card.
 
 ### Module conventions
 
-- **Any size.** On the widget board a card can be any width (2–12 columns) and any height. Lay out with flex/grid and `min-width: 0`; for layout changes by width use `@container` (the card is the container), not only `@media`. Give the module a default in `setBoardDefaults()`.
+- **Any size.** On the widget board a card can be any width (2–12 columns) and any height. Lay out with flex/grid and `min-width: 0`; for layout changes by width or height use `@container` (the card is the container), not only `@media`. Give the module a default in `setBoardDefaults()`.
 - **Build once, update in place.** Create elements in `mount`, then update text/styles on tick. Rebuild a list only when its shape changes (see the `lastKey` pattern in `week/`). Never recreate buttons or inputs every second: clicks and focus get lost.
 - **Don't redraw under the user's cursor.** If a re-render would replace an input that has focus, skip it (see `calendar/`).
 - **Talk to other features through data or navigation**, not by importing each other. Week opens a day with `nav.go('calendar', key)`. Notes write to the work log and the Calendar picks them up.
@@ -328,7 +330,7 @@ Code: MIT (`LICENSE`). Bundled fonts: SIL Open Font License, see `NOTICE.md`.
 
 ## Changelog
 
-- **v0.7**: Optional **widget board** layout (Settings → Layout): every card on one free 12-column grid for a small always-on monitor. Edit layout to drag, resize (mouse or keyboard), hide and add widgets; reset to defaults; links scroll to (or offer to add) the right widget; stacks on narrow windows. Tabs stays the default and switching back keeps the board for later.
+- **v0.7**: Optional **widget board** layout (Settings → Layout): every card on one free 12-column grid for a small always-on monitor, **fitted exactly to the window height** (rows scale; short cards tighten their contents). Edit layout to drag, resize (mouse or keyboard), hide and add widgets; reset to defaults; links scroll to (or offer to add) the right widget; stacks on narrow windows. Tabs stays the default and switching back keeps the board for later.
 - **v0.6**: To-dos rebuilt: one list where open to-dos always belong to today and ticked ones to the day ticked, with **Added** and **Done** times (only the last tick counts). Optional **reminders** (date and/or time) with pop-ups, snooze and Windows notifications. New **To-do tab** (Open / Reminders / Done history). Calendar shows a bell for reminders and ✓n for to-dos done. **Ink stamps** at Halfway / Home time / Day done, and a "Friday in N days" line. Data migration v2→v3.
 - **v0.5.1**: Scrollbars hidden everywhere.
 - **v0.5**: Day types (public holiday, vacation, sick, half day), including marking a run of days; they change the week total correctly. Daily to-do list with automatic carry-over, plus planning on future days from the Calendar. Notes tab with search and `#tag` filtering. Timesheet (week/month) with copy-as-text and CSV download. Fixed: the Calendar's day header printed "null" on days with no start time.
@@ -339,7 +341,7 @@ Code: MIT (`LICENSE`). Bundled fonts: SIL Open Font License, see `NOTICE.md`.
 
 ## Ideas / roadmap
 
-- Several named boards (e.g. "small monitor", "laptop"); a board that fits the window height exactly
+- Several named boards (e.g. "small monitor", "laptop")
 - Breaks / lunch inside the day bar
 - Focus timer (pomodoro) that logs sessions to the day
 - Flex-time balance (running +/- against the 8h target)
