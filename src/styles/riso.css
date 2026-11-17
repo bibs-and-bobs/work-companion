@@ -461,12 +461,17 @@ table.sheet { width: 100%; border-collapse: collapse; font-size: 13px; min-width
 .board {
   --row: 40px;
   display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-auto-rows: var(--row);
-  gap: 16px; padding: 22px 24px 40px; position: relative;
+  gap: 14px; padding: 18px 24px 24px; position: relative;
 }
 .board > .card {
   grid-column: var(--gx) / span var(--gw); grid-row: var(--gy) / span var(--gh);
   display: flex; flex-direction: column; min-height: 0; overflow: hidden;
   container-type: inline-size; padding: 16px 18px 18px;
+}
+/* wide: --row and the board height are set by core/board-view.js so the board fits the window;
+   cards are size containers so their insides can also react to their own height */
+@media (min-width: 701px) {
+  .board > .card { container-type: size; }
 }
 .board > .card .card-title { align-self: flex-start; flex: none; margin-bottom: 12px; }
 .board > .card .card-body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
@@ -497,7 +502,7 @@ table.sheet { width: 100%; border-collapse: collapse; font-size: 13px; min-width
 
 /* edit mode: halftone paper, each card gets a grip, a size tag, × and a resize corner */
 .board-chrome { display: none; }
-.board-editing .board { color: rgba(31, 42, 68, .16); background: var(--halftone); background-origin: content-box; padding-bottom: 160px; }
+.board-editing .board { color: rgba(31, 42, 68, .16); background: var(--halftone); background-origin: content-box; }
 .board-editing .board > .card { color: var(--ink); user-select: none; }
 .board-editing .board > .card .card-body { pointer-events: none; opacity: .55; }
 .board-editing .board-chrome { display: block; position: absolute; inset: 0; z-index: 3; }
@@ -547,6 +552,29 @@ table.sheet { width: 100%; border-collapse: collapse; font-size: 13px; min-width
   .stamp { top: 8px; right: 14px; padding: 6px 10px 5px; }
   .stamp-big { font-size: 17px; }
   .sheet-range { margin-left: 0; padding-bottom: 0; width: 100%; }
+}
+
+/* short widgets: tighten the big pieces */
+@container (max-height: 420px) {
+  .today-pct { font-size: 64px; }
+  .today-headline { font-size: 30px; }
+  .bar { height: 30px; margin-top: 16px; }
+  .stats { margin-top: 14px; }
+  .stats dd { font-size: 18px; }
+  .actions { margin-top: 14px; }
+  .btn-primary { font-size: 18px; padding: 12px 20px; }
+  .week-big { font-size: 46px; }
+  .ribbon { margin-top: 12px; }
+  .week-cols { margin-top: 12px; }
+  .day-bar { height: 64px; }
+}
+@container (max-height: 360px) {
+  .today-sub, .bar-labels, .day-date { display: none; }
+  .today-pct { font-size: 52px; }
+  .week-big { font-size: 40px; }
+  .day-bar { height: 40px; }
+  .stats > div { padding-top: 6px; }
+  .actions { margin-top: 10px; }
 }
 
 /* narrow window: the board stacks in reading order and can't be edited */

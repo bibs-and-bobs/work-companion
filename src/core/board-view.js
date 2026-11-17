@@ -14,6 +14,8 @@ export function boardView({ h, cards, modules, firstView }) {
   const viewOf = Object.fromEntries(modules.map((m) => [m.id, m.view ?? firstView]));
   let items = board.layout();
   let editing = false;
+  let dragging = false;   // row height is frozen while a card is dragged
+  const wide = matchMedia('(min-width: 701px)');
   let active = false;
   const sizeLabels = new Map();
 
@@ -61,7 +63,25 @@ export function boardView({ h, cards, modules, firstView }) {
     addSel.replaceChildren(h('option', { value: '' }, hidden.length ? `Add widget (${hidden.length})…` : 'All widgets shown'),
       ...hidden.map((m) => h('option', { value: m.id }, m.title)));
     addSel.disabled = !hidden.length;
+    if (!dragging) fit(view);
     requestAnimationFrame(markClipped);
+  }
+
+  // Fit the window: row height is chosen so the lowest card ends exactly at the bottom of the
+  // window, whatever its size. Below MIN_ROW px per row the board scrolls instead of squashing.
+  const MIN_ROW = 14;
+  function fit(view = items) {
+    if (!active) return;
+    if (!wide.matches) { el.style.removeProperty('--row'); el.style.removeProperty('height'); return; }
+    const cs = getComputedStyle(el);
+    const gap = parseFloat(cs.rowGap) || 0;
+    const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    const rows = Math.max(1, ...Object.values(view).filter((it) => !it.hidden).map((it) => it.y + it.h));
+    const top = el.getBoundingClientRect().top + window.scrollY;
+    const avail = window.innerHeight - top - pad;
+    const row = Math.max(MIN_ROW, (avail - gap * (rows - 1)) / rows);
+    el.style.setProperty('--row', `${row}px`);
+    el.style.height = row > MIN_ROW ? `${window.innerHeight - top}px` : '';
   }
 
   function commit(next, focusId = null) {
@@ -97,6 +117,7 @@ export function boardView({ h, cards, modules, firstView }) {
     const sy = e.clientY + window.scrollY;
     const step = steps();
     let preview = items;
+    dragging = true;
     card.classList.add('is-dragging');
     document.body.classList.add(mode === 'move' ? 'board-moving' : 'board-resizing');
     const move = (ev) => {
@@ -114,7 +135,9 @@ export function boardView({ h, cards, modules, firstView }) {
       window.removeEventListener('pointercancel', end);
       card.classList.remove('is-dragging');
       document.body.classList.remove('board-moving', 'board-resizing');
+      dragging = false;
       if (preview !== items) commit(preview);
+      else fit();
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', end);
@@ -143,7 +166,10 @@ export function boardView({ h, cards, modules, firstView }) {
   }
   for (const card of cards.values()) card.querySelector('.card-body').addEventListener('scroll', markClipped, { passive: true });
   store.onChange(() => requestAnimationFrame(markClipped));
-  window.addEventListener('resize', markClipped);
+  window.addEventListener('resize', () => { fit(); markClipped(); });
+  wide.addEventListener('change', () => fit());
+  // The masthead can change height (buttons appear, Edit layout); refit when it does.
+  new ResizeObserver(() => fit()).observe(document.body);
   setInterval(markClipped, 1000);
 
   store.onChange((ns) => {
@@ -205,6 +231,8 @@ export function boardView({ h, cards, modules, firstView }) {
       active = false;
       setEditing(false);
       el.hidden = true;
+      el.style.removeProperty('--row');
+      el.style.removeProperty('height');
       for (const card of cards.values()) {
         card.hidden = false;
         card.classList.remove('is-clipped', 'board-flash');

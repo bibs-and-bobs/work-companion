@@ -17,14 +17,15 @@ registerView({ id: 'todo', title: 'To-do' });
 [today, tasks, notes, week, calendar, timesheet, search, tasklist].forEach(register);
 
 // Where each module starts on the widget board (Settings → Layout → Widget board).
-// 12 columns; y / h in rows. Hidden ones can be added from Edit layout → Add widget.
+// 12 columns; y / h in rows. The board scales its rows so the lowest card ends at the bottom
+// of the window, so this default is one screen. Hidden ones are in Edit layout → Add widget.
 setBoardDefaults({
-  today:     { x: 0, y: 0,  w: 7, h: 9 },
-  tasks:     { x: 7, y: 0,  w: 5, h: 9 },
-  week:      { x: 0, y: 9,  w: 5, h: 8 },
-  notes:     { x: 5, y: 9,  w: 7, h: 4 },
-  search:    { x: 5, y: 13, w: 7, h: 4, hidden: true },
-  calendar:  { x: 0, y: 17, w: 12, h: 12 },
-  timesheet: { x: 0, y: 29, w: 12, h: 10, hidden: true },
-  tasklist:  { x: 0, y: 39, w: 6, h: 10, hidden: true },
+  today:     { x: 0, y: 0, w: 7, h: 7 },
+  tasks:     { x: 7, y: 0, w: 5, h: 7 },
+  week:      { x: 0, y: 7, w: 7, h: 7 },
+  notes:     { x: 7, y: 7, w: 5, h: 7 },
+  calendar:  { x: 0, y: 14, w: 12, h: 12, hidden: true },
+  search:    { x: 7, y: 14, w: 5, h: 6, hidden: true },
+  timesheet: { x: 0, y: 26, w: 12, h: 10, hidden: true },
+  tasklist:  { x: 0, y: 36, w: 6, h: 10, hidden: true },
 });

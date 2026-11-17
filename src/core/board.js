@@ -71,11 +71,22 @@ export function hide(items, id) {
   return out;
 }
 
-// Shows a hidden widget again, at the bottom of the board.
+// Shows a hidden widget again: in an empty gap big enough for it if there is one, otherwise at
+// the bottom. The board fits the window, so every added row shrinks the rest: a widget added at
+// the bottom is capped at half the board's current height (resize it afterwards as you like).
 export function show(items, id) {
   const out = structuredClone(items);
   const { hidden, ...it } = out[id];
-  out[id] = tidy({ ...it, x: 0, y: bottomOf(out) });
+  const rows = bottomOf(out);
+  const shown = Object.values(out).filter((o) => !o.hidden);
+  for (let y = 0; y + it.h <= rows; y++) {
+    for (let x = 0; x + it.w <= COLS; x++) {
+      const spot = { x, y, w: it.w, h: it.h };
+      if (!shown.some((o) => overlaps(o, spot))) { out[id] = tidy(spot); return out; }
+    }
+  }
+  const h = rows ? Math.min(it.h, Math.max(MIN_H + 2, Math.round(rows / 2))) : it.h;
+  out[id] = tidy({ ...it, h, x: 0, y: rows });
   return out;
 }
 
