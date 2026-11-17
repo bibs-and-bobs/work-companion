@@ -8,6 +8,7 @@ export const DEFAULTS = {
   dayLengthMin: 9 * 60,
   breakMin: 60,
   workdays: [true, true, true, true, true, false, false], // Mon..Sun
+  layout: 'tabs',   // 'tabs' (classic tabs) | 'board' (free widget board, core/board.js)
 };
 
 export function get() {

@@ -11,6 +11,7 @@ import { onTick } from './clock.js';
 import { allViews, allModules, modulesFor } from './registry.js';
 import { h } from './dom.js';
 import { settingsPanel } from './settings-panel.js';
+import { boardView, layoutPanel } from './board-view.js';
 import { dataPanel } from './data-panel.js';
 import * as widgets from './widgets.js';
 import { initPwa, onInstallable, install } from './pwa.js';
@@ -35,6 +36,8 @@ const ctxFor = (mod) => ({
 });
 
 const openDrawer = (open) => document.body.classList.toggle('drawer-open', open);
+
+let boardUI = null;   // widget board (core/board-view.js), used when settings.layout is 'board'
 
 function masthead() {
   const date = h('div.masthead-date');
@@ -66,12 +69,13 @@ function masthead() {
       h('div.masthead-meta', date, clock)),
     h('div.masthead-row',
       h('nav.tabs', tabs),
-      h('div.btn-row', reconnectBtn, installBtn, h('button.btn', { onclick: () => openDrawer(true), title: 'Settings' }, 'Settings'))));
+      h('div.btn-row', boardUI.toolbar, reconnectBtn, installBtn, h('button.btn', { onclick: () => openDrawer(true), title: 'Settings' }, 'Settings'))));
 }
 
 function drawer() {
   const body = h('div.drawer-body',
-    h('section.drawer-section', h('h3', 'Work day'), settingsPanel({ h, settings })));
+    h('section.drawer-section', h('h3', 'Work day'), settingsPanel({ h, settings })),
+    h('section.drawer-section', h('h3', 'Layout'), layoutPanel({ h, settings })));
   for (const mod of allModules()) {
     if (!mod.settings) continue;
     const el = h('section.drawer-section', h('h3', mod.title));
@@ -98,9 +102,12 @@ function card(mod) {
   return el;
 }
 
+function activeView(view) {
+  return allViews().some((v) => v.id === view) ? view : allViews()[0].id;
+}
+
 function showView({ view }) {
-  const known = allViews().some((v) => v.id === view);
-  const active = known ? view : allViews()[0].id;
+  const active = activeView(view);
   document.querySelectorAll('[data-view]').forEach((el) => {
     if (el.classList.contains('tab')) el.classList.toggle('is-active', el.dataset.view === active);
     else el.hidden = el.dataset.view !== active;
@@ -112,21 +119,45 @@ async function boot() {
   await store.loadStore();
   nav.setDefault(allViews()[0].id);
 
+  const cards = new Map();   // module id -> card element (moved between tabs and board, mounted once)
   const views = allViews().map((v) =>
-    h('main.grid.view', { 'data-view': v.id }, modulesFor(v.id).map(card)));
+    h('main.grid.view', { 'data-view': v.id }, modulesFor(v.id).map((m) => {
+      const el = card(m);
+      cards.set(m.id, el);
+      return el;
+    })));
+  boardUI = boardView({ h, cards, modules: allModules(), firstView: allViews()[0].id });
 
   document.getElementById('app').replaceChildren(
-    masthead(), ...views,
+    masthead(), ...views, boardUI.el,
     h('div.scrim', { onclick: () => openDrawer(false) }),
     drawer());
 
-  showView(nav.current());
-  nav.onChange(showView);
+  // Tabs (classic) or widget board, from Settings → Layout. Switching moves the cards, it doesn't remount them.
+  let layout = null;
+  const applyLayout = () => {
+    const next = settings.get().layout === 'board' ? 'board' : 'tabs';
+    if (next === layout) return;
+    layout = next;
+    document.body.classList.toggle('layout-board', layout === 'board');
+    if (layout === 'board') {
+      views.forEach((v) => { v.hidden = true; });
+      boardUI.activate();
+    } else {
+      boardUI.deactivate();
+      views.forEach((v) => v.append(...modulesFor(v.dataset.view).map((m) => cards.get(m.id))));
+      showView(nav.current());
+    }
+  };
+  applyLayout();
+  store.onChange((ns) => { if (ns === 'settings') applyLayout(); });
+
+  nav.onChange((c) => (layout === 'board' ? boardUI.reveal(activeView(c.view)) : showView(c)));
 
   initReminders();   // pop-ups for to-do reminders
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') openDrawer(false);
+    if (e.key === 'Escape') { openDrawer(false); boardUI.setEditing(false); }
     const n = Number(e.key);
     if ((e.ctrlKey || e.metaKey) && n >= 1 && n <= allViews().length) {
       e.preventDefault();

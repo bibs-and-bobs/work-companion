@@ -14,6 +14,7 @@
 
 const views = [];
 const modules = [];
+let boardDefs = {};
 
 export function registerView(view) {
   if (views.some((v) => v.id === view.id)) throw new Error(`Duplicate view id: ${view.id}`);
@@ -28,3 +29,7 @@ export function register(mod) {
 export const allViews = () => [...views];
 export const allModules = () => [...modules];
 export const modulesFor = (viewId) => modules.filter((m) => (m.view ?? views[0]?.id) === viewId);
+
+// Default spot of each module on the widget board: { id: { x, y, w, h, hidden? } } (see core/board.js).
+export const setBoardDefaults = (defs) => { boardDefs = defs; };
+export const boardDefaults = () => structuredClone(boardDefs);

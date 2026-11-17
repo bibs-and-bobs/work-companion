@@ -12,7 +12,7 @@ It is meant to grow one feature at a time and look finished at every stage.
 
 ---
 
-## What it does today (v0.6)
+## What it does today (v0.7)
 
 | Tab | Card | What it shows |
 |---|---|---|
@@ -25,11 +25,14 @@ It is meant to grow one feature at a time and look finished at every stage.
 | **To-do** | **All to-dos** | Add a to-do with an optional reminder (date and/or time). Filters: Open, Reminders, Done (history grouped by the day ticked, links to the Calendar). Each row shows **Added …** and **Done …** times and the reminder. Option to allow Windows notifications. |
 | *(anywhere)* | **Reminder pop-ups** | When a reminder is due a pop-up appears bottom-right: Done, Snooze 10 min, Open. Also a Windows notification if allowed. Works while the app is open; missed reminders pop when it opens next. |
 | **Notes** | **Search notes** | Search all notes (matches are highlighted), filter by `#tag` chips, edit or delete in place, click a day to open it in the Calendar. |
-| *(drawer)* | **Settings** | Time at work (default 9h), unpaid break (default 1h), workdays, and **Your data**: save to a file on this PC (automatic), plus manual backup / restore. |
+| *(drawer)* | **Settings** | Time at work (default 9h), unpaid break (default 1h), workdays, **Layout** (Tabs or Widget board), and **Your data**: save to a file on this PC (automatic), plus manual backup / restore. |
+| *(optional)* | **Widget board** | Settings → Layout → **Widget board** puts every card on one free 12-column grid instead of tabs, with a compact masthead, made for a small monitor kept open all day. **Edit layout** (masthead): drag a card to move it, drag its corner to resize it, **×** takes it off the board, **Add widget** puts it back, **Reset** restores the starting layout. Keyboard: focus a card's handle, arrows move, Shift + arrows resize, Esc finishes. Cards push others down when they would overlap; gaps you leave stay. A card with more content than fits scrolls inside and shows a halftone edge at the bottom. Links that open a tab (Week → a day, `Ctrl+2`, a `#tag`) scroll to that widget, or offer to add it if it's not on the board. Under ~700px wide the board stacks the cards in reading order. Switch back to **Tabs** any time; the board is kept for next time. |
 | *(masthead)* | **Reconnect file** | Appears after a browser restart when a linked file needs the browser's permission again (one click). |
 | *(masthead)* | **Install app** | Appears when the browser can install it as a desktop app (Chrome / Edge). |
 
-Keyboard: `Ctrl+1` Today, `Ctrl+2` Calendar, `Ctrl+3` Notes, `Ctrl+4` To-do, `Ctrl+N` new note, `Esc` close Settings.
+Keyboard: `Ctrl+1` Today, `Ctrl+2` Calendar, `Ctrl+3` Notes, `Ctrl+4` To-do (on the widget board: scroll to that widget), `Ctrl+N` new note, `Esc` close Settings / finish Edit layout.
+
+![Widget board](docs/board.png)
 
 ## Run it
 
@@ -89,8 +92,10 @@ src/icons/                icon.svg (source) + PNGs rendered from it
 src/fonts/                Self-hosted Bricolage Grotesque + Space Mono (OFL) and fonts.css
 src/styles/riso.css       Design tokens + every style (sections per module)
 src/core/                 Shared framework. Modules never import these directly; they get them via ctx.
-  app.js                  Boot: masthead, tabs, Settings drawer, mounts modules. Defines ctx.
-  registry.js             registerView() / register() — the view & module contracts
+  app.js                  Boot: masthead, tabs, Settings drawer, mounts modules. Defines ctx. Switches Tabs ↔ Widget board.
+  registry.js             registerView() / register() — the view & module contracts; setBoardDefaults()
+  board.js                Widget board data + layout maths (positions, place/push-down, hide/show, defaults)
+  board-view.js           Widget board UI: the grid, Edit layout (drag, resize, keyboard), Add widget, reveal on nav; Layout section of Settings
   store.js                Saved state (one JSON object, namespaced) + versioned migrations + backup + which copy wins (browser vs linked file)
   filesync.js             Linked file on the PC: file handle, permission, debounced writes (talks to the file only)
   settings.js             User settings (day length, workdays)
@@ -106,7 +111,7 @@ src/core/                 Shared framework. Modules never import these directly;
   widgets.js              Shared UI pieces: noteItem, todoItem (editable rows), richText (#tags + highlight), tagsOf, dayLabel
   pwa.js                  Web-app plumbing: registers sw.js, Install button, persistent storage
 src/modules/
-  index.js                THE list of tabs and modules, in order. Turn things on/off here.
+  index.js                THE list of tabs and modules, in order, plus where each starts on the widget board. Turn things on/off here.
   today/  tasks/  notes/  week/    (Today tab)
   calendar/  timesheet/              (Calendar tab)
   search/                            (Notes tab)
@@ -135,7 +140,12 @@ Nothing keeps its own copy of hours or notes.
   "_version": 3,
   "_lastBackup": "2026-11-11T16:20:00.000Z",  // set when a backup is downloaded
   "_savedAt": "2026-11-11T16:21:00.000Z",     // set on every save; decides which copy is newest
-  "settings": { "dayLengthMin": 540, "breakMin": 60, "workdays": [true, true, true, true, true, false, false] },
+  "settings": { "dayLengthMin": 540, "breakMin": 60, "workdays": [true, true, true, true, true, false, false],
+                "layout": "tabs" },               // "tabs" | "board" (widget board)
+  "board": { "items": {                       // widget board positions, see "Widget board" below; absent = defaults
+    "today": { "x": 0, "y": 0, "w": 7, "h": 9 },        // 12 columns; y / h in rows of 40px
+    "timesheet": { "x": 0, "y": 29, "w": 12, "h": 10, "hidden": true }
+  } },
   "worklog": {
     "2026-11-11": {
       "start": "2026-11-11T07:30:00.000Z",   // Begin day (null = not started)
@@ -202,6 +212,16 @@ All hour numbers in the UI come from this one function. Change the rules there, 
 
 `setKind(date, kind)` sets one day. `setKindRange(from, to, kind)` marks a run in one save: setting skips non-workdays and days already worked, clearing clears every day in range.
 
+### Widget board (`core/board.js`, `core/board-view.js`)
+
+- Optional layout (Settings → Layout). **Tabs** is the default and unchanged. The board shows **all** modules from all views on one grid.
+- The card elements are created and mounted **once** (`app.js` keeps them in a `cards` map). Switching layout only moves them between the tab `<main>`s and `<main class="board">`, so nothing remounts and typed text survives.
+- Positions: `board.items[id] = { x, y, w, h, hidden? }`, 12 columns (`COLS`), rows of `--row` (40px) + 16px gap. Min 2×2. Each card gets `--gx/--gy/--gw/--gh` and CSS places it. A module missing from the saved board uses its default from `setBoardDefaults()` in `modules/index.js`; a module with no default goes at the bottom. So **a new module just appears** on existing boards.
+- `board.place(items, id, next)` moves/resizes one card and pushes overlapped cards straight down (no auto-compacting, so deliberate gaps stay). Dragging previews live and saves on release.
+- Navigation in board mode: `nav.onChange` calls `reveal(view)`: if none of that view's widgets is on screen it scrolls to the first and flashes it; if they're all hidden it shows a toast offering to add the first one.
+- Cards on the board have a fixed height: content scrolls inside `.card-body` and `.is-clipped` adds a halftone edge when there is more below. Cards are CSS **containers**, so `@container` rules in `riso.css` reflow the inside (e.g. the Calendar stacks its day panel) by the card's own width.
+- No migration was needed: `settings.layout` and `board` are new optional keys, and missing means default.
+
 ### Views and modules
 
 A **view** is a tab: `registerView({ id, title })`.
@@ -242,6 +262,7 @@ A module that throws while mounting only breaks its own card.
 
 ### Module conventions
 
+- **Any size.** On the widget board a card can be any width (2–12 columns) and any height. Lay out with flex/grid and `min-width: 0`; for layout changes by width use `@container` (the card is the container), not only `@media`. Give the module a default in `setBoardDefaults()`.
 - **Build once, update in place.** Create elements in `mount`, then update text/styles on tick. Rebuild a list only when its shape changes (see the `lastKey` pattern in `week/`). Never recreate buttons or inputs every second: clicks and focus get lost.
 - **Don't redraw under the user's cursor.** If a re-render would replace an input that has focus, skip it (see `calendar/`).
 - **Talk to other features through data or navigation**, not by importing each other. Week opens a day with `nav.go('calendar', key)`. Notes write to the work log and the Calendar picks them up.
@@ -279,6 +300,8 @@ App icon: `src/icons/icon.svg` (pink + blue overprint with a yellow off-register
 10. Visible keyboard focus (blue outline) on everything clickable.
 11. No visible scrollbars (hidden globally in `riso.css`). Scrolling still works. Keep tables and lists that scroll sideways obviously cut off at the edge so people know there is more.
 
+**Widget board**: in Edit layout the board shows halftone paper; each card gets a grip (whole card), a size tag (`7 × 9`, ink), a × button and a resize corner in its own ink. A clipped card shows a halftone strip in its ink at the bottom. The masthead is one compact row.
+
 **Stamps** (`.stamp` in `riso.css`): double-ring rubber stamp, rotated −8°, multiply blend, a worn-ink mask (`--stamp-wear`), and a short "thump" animation only when a milestone is reached live (not on reload). Ink: blue = Halfway, pink = Home time, ink = Day done.
 
 Meaning of inks so far: **pink** = today / now, **blue** = done / week / timesheet, **yellow** = calendar / highlight / days off, **green** = notes and tags, **orange** = to-do.
@@ -305,6 +328,7 @@ Code: MIT (`LICENSE`). Bundled fonts: SIL Open Font License, see `NOTICE.md`.
 
 ## Changelog
 
+- **v0.7**: Optional **widget board** layout (Settings → Layout): every card on one free 12-column grid for a small always-on monitor. Edit layout to drag, resize (mouse or keyboard), hide and add widgets; reset to defaults; links scroll to (or offer to add) the right widget; stacks on narrow windows. Tabs stays the default and switching back keeps the board for later.
 - **v0.6**: To-dos rebuilt: one list where open to-dos always belong to today and ticked ones to the day ticked, with **Added** and **Done** times (only the last tick counts). Optional **reminders** (date and/or time) with pop-ups, snooze and Windows notifications. New **To-do tab** (Open / Reminders / Done history). Calendar shows a bell for reminders and ✓n for to-dos done. **Ink stamps** at Halfway / Home time / Day done, and a "Friday in N days" line. Data migration v2→v3.
 - **v0.5.1**: Scrollbars hidden everywhere.
 - **v0.5**: Day types (public holiday, vacation, sick, half day), including marking a run of days; they change the week total correctly. Daily to-do list with automatic carry-over, plus planning on future days from the Calendar. Notes tab with search and `#tag` filtering. Timesheet (week/month) with copy-as-text and CSV download. Fixed: the Calendar's day header printed "null" on days with no start time.
@@ -315,6 +339,7 @@ Code: MIT (`LICENSE`). Bundled fonts: SIL Open Font License, see `NOTICE.md`.
 
 ## Ideas / roadmap
 
+- Several named boards (e.g. "small monitor", "laptop"); a board that fits the window height exactly
 - Breaks / lunch inside the day bar
 - Focus timer (pomodoro) that logs sessions to the day
 - Flex-time balance (running +/- against the 8h target)
