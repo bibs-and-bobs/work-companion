@@ -167,3 +167,31 @@ export function todoItem(task, { compact = false, now = new Date() } = {}) {
     },
   });
 }
+
+// ── Full-screen overlay (break games, eye break). One at a time; Esc or Close closes it. ──
+// Returns { body, close }. The caller fills body. onClose runs once, however it was closed.
+let openOverlay = null;
+export const overlayOpen = () => !!openOverlay;
+
+export function overlay({ label, ink = 'pink', onClose } = {}) {
+  openOverlay?.close();
+  const before = document.activeElement;
+  const body = h('div.overlay-body');
+  const closeBtn = h('button.btn', { onclick: () => close() }, 'Close');
+  const el = h('div.overlay', h(`div.overlay-panel.ink-${ink}`, { role: 'dialog', 'aria-modal': 'true', 'aria-label': label },
+    h('div.overlay-head', h('span.overlay-label', label), closeBtn), body));
+  const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  function close() {
+    if (!el.isConnected) return;
+    el.remove();
+    document.removeEventListener('keydown', onKey, true);
+    openOverlay = null;
+    onClose?.();
+    before?.focus?.();
+  }
+  document.addEventListener('keydown', onKey, true);
+  document.body.append(el);
+  openOverlay = { close };
+  setTimeout(() => (body.querySelector('button, input') ?? closeBtn).focus(), 0);
+  return { body, close };
+}

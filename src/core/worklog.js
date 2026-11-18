@@ -6,6 +6,7 @@
 //       end:   ISO string | null,   // set by "End day"; null while working
 //       notes: [{ id, t: ISO string, text, e?: ISO string }],             // e = last edited
 //       kind:  "holiday" | "vacation" | "sick" | "half"                   // optional day type
+//       water: 3                                                         // optional: glasses drunk (Water card)
 //     }
 //   }
 //   Optional fields are left out when empty, and a day with nothing in it is removed.
@@ -44,7 +45,8 @@ function tidy(log, key) {
   if (!day) return;
   if (!day.start) day.end = null;
   if (!day.kind) delete day.kind;
-  if (!day.start && !day.notes.length && !day.kind) delete log[key];
+  if (!(day.water > 0)) delete day.water;
+  if (!day.start && !day.notes.length && !day.kind && !day.water) delete log[key];
 }
 
 function applyTo(log, date, fn) {
@@ -76,6 +78,7 @@ export const setTimes = (date, { start, end }) => update(date, (d) => {
 });
 
 // ── Actions: day type ──
+export const setWater = (date, n) => update(date, (d) => { d.water = Math.max(0, Math.min(99, Math.round(n) || 0)); });
 export const setKind = (date, kind) => update(date, (d) => { d.kind = KINDS[kind] ? kind : null; });
 
 // Sets the type on every day from `from` to `to` (one save). Setting a type skips days

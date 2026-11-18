@@ -12,25 +12,29 @@ It is meant to grow one feature at a time and look finished at every stage.
 
 ---
 
-## What it does today (v0.7)
+## What it does today (v0.8)
 
 | Tab | Card | What it shows |
 |---|---|---|
 | **Today** | **Today** | Press **Begin day** to start the countdown to **home time** (default 9h at work). Shows time to go, % done, a progress bar, and Worked / Home in / Home at. **Worked** counts 8h for a full day (9h minus the unpaid break). **End day** logs the finish. **Resume** undoes it. A riso **ink stamp** lands at Halfway, Home time and Day done, and a line counts down to the end of the week ("Friday in 2 days"). |
 | | **To-do** | A short preview: open to-dos (due reminders first, max 5), quick add, tick / edit / delete, "Show done" for today's ticked ones, link to the To-do tab. **Open to-dos always belong to today** until ticked. |
 | | **Notes** | Type a note and press Enter (or `Ctrl+N` from anywhere). It is timestamped and saved to today's record. Notes stay hidden, with a "Show" toggle. Each note can be **edited** (pencil) or deleted (×). Write `#tags` in a note; click a tag to open the Notes tab filtered by it. |
+| | **Water** | A glass in blue ink fills as you log glasses (**+ Glass** / **−**). Shows *n / goal* and, while the day is running, whether you're keeping up ("On track", "2 behind"). Saved on the day in the work log. Goal in Settings (default 8). |
 | | **This week** | Week % done, hours worked/left, a bar per day. Click a day to open it in the Calendar. A green dot means that day has notes. |
 | **Calendar** | **Calendar** | Month grid with hours worked, note counts and day-type tags. Select a day to fix its start/end times (for example if you forgot to press Begin day), set its **day type** (public holiday, vacation, sick day, half day), optionally through a later date to mark a whole vacation week, and manage its notes. Its **To-dos** section shows reminders set for that day and to-dos ticked that day; adding one on a future day creates a reminder for that morning. Cells show a **bell** for reminders and **✓n** for to-dos ticked that day. |
 | | **Timesheet** | Hours for this week / last week / this month / last month as a table, with a total. **Copy summary** (plain text) and **Download CSV**, each optionally with notes. |
 | **To-do** | **All to-dos** | Add a to-do with an optional reminder (date and/or time). Filters: Open, Reminders, Done (history grouped by the day ticked, links to the Calendar). Each row shows **Added …** and **Done …** times and the reminder. Option to allow Windows notifications. |
+| **Break** | **Two-minute break** | Pick an activity and it opens full screen with a 2:00 bar; at the end a **Break done** stamp sends you back to work. **Fold & punch**: a sheet is folded 2–3 times and punched; pick the unfolded pattern (as many rounds as you can). **Overprint**: stack pink / blue / yellow ink (0–100%) to match a target print. **Breathe**: box breathing with a halftone square (4·4·4·4). **Stretch**: 30-second stretch cards, stamped done. **Surprise me** picks one. Keeps breaks today and best scores. |
+| | **Daily puzzle** | A 5×5 picture grid: the numbers give the runs of filled squares in each row and column. One grid a day, made from the date (the same for everyone that day). Click to fill, right-click or **✕ mode** to mark empty; satisfied clues fade. Solving stamps it with your time and builds a **streak** of days in a row. |
+| | **Eye break** | 20-20-20: while your day is running, every 20 min (Settings) a full-screen "Look far away" with a 20 s countdown that closes itself. If the app isn't in front, a system notification instead (when allowed). Card shows the countdown, **Now**, **Pause**, and how many today. Waits a minute if you're already on a break. |
 | *(anywhere)* | **Reminder pop-ups** | When a reminder is due a pop-up appears bottom-right: Done, Snooze 10 min, Open. Also a Windows notification if allowed. Works while the app is open; missed reminders pop when it opens next. |
 | **Notes** | **Search notes** | Search all notes (matches are highlighted), filter by `#tag` chips, edit or delete in place, click a day to open it in the Calendar. |
 | *(drawer)* | **Settings** | Time at work (default 9h), unpaid break (default 1h), workdays, **Layout** (Tabs or Widget board), and **Your data**: save to a file on this PC (automatic), plus manual backup / restore. |
-| *(optional)* | **Widget board** | Settings → Layout → **Widget board** puts every card on one free 12-column grid instead of tabs, with a compact masthead, made for a small monitor kept open all day. The board **fits the window height exactly**: rows stretch or shrink so the lowest card ends at the bottom of the window (no page scrolling), and card contents tighten when a card is short. Starts with Today, To-do, This week and Notes on one screen. **Edit layout** (masthead): drag a card to move it, drag its corner to resize it, **×** takes it off the board, **Add widget** puts it back, **Reset** restores the starting layout. Keyboard: focus a card's handle, arrows move, Shift + arrows resize, Esc finishes. Cards push others down when they would overlap; gaps you leave stay. Add widget uses an empty gap if one is big enough, otherwise adds it at the bottom (at most half the board's height, since everything else then shrinks to fit). A card with more content than fits scrolls inside and shows a halftone edge at the bottom. Links that open a tab (Week → a day, `Ctrl+2`, a `#tag`) scroll to that widget, or offer to add it if it's not on the board. Under ~700px wide the board stacks the cards in reading order. Switch back to **Tabs** any time; the board is kept for next time. |
+| *(optional)* | **Widget board** | Settings → Layout → **Widget board** puts every card on one free 12-column grid instead of tabs, with a compact masthead, made for a small monitor kept open all day. The board **fits the window height exactly**: rows stretch or shrink so the lowest card ends at the bottom of the window (no page scrolling), and card contents tighten when a card is short. Starts with Today, To-do, Water, This week, Notes and Two-minute break on one screen (Daily puzzle and Eye break are in Add widget; the eye break timer runs either way). **Edit layout** (masthead): drag a card to move it, drag its corner to resize it, **×** takes it off the board, **Add widget** puts it back, **Reset** restores the starting layout. Keyboard: focus a card's handle, arrows move, Shift + arrows resize, Esc finishes. Cards push others down when they would overlap; gaps you leave stay. Add widget uses an empty gap if one is big enough, otherwise adds it at the bottom (at most half the board's height, since everything else then shrinks to fit). A card with more content than fits scrolls inside and shows a halftone edge at the bottom. Links that open a tab (Week → a day, `Ctrl+2`, a `#tag`) scroll to that widget, or offer to add it if it's not on the board. Under ~700px wide the board stacks the cards in reading order. Switch back to **Tabs** any time; the board is kept for next time. |
 | *(masthead)* | **Reconnect file** | Appears after a browser restart when a linked file needs the browser's permission again (one click). |
 | *(masthead)* | **Install app** | Appears when the browser can install it as a desktop app (Chrome / Edge). |
 
-Keyboard: `Ctrl+1` Today, `Ctrl+2` Calendar, `Ctrl+3` Notes, `Ctrl+4` To-do (on the widget board: scroll to that widget), `Ctrl+N` new note, `Esc` close Settings / finish Edit layout.
+Keyboard: `Ctrl+1` Today, `Ctrl+2` Calendar, `Ctrl+3` Notes, `Ctrl+4` To-do, `Ctrl+5` Break (on the widget board: scroll to that widget), `Ctrl+N` new note, `Esc` close Settings / a break screen / finish Edit layout.
 
 ![Widget board](docs/board.png)
 
@@ -108,7 +112,7 @@ src/core/                 Shared framework. Modules never import these directly;
   dom.js                  h('div.class', {attrs}, ...children) element builder
   settings-panel.js       Settings drawer: Work day section
   data-panel.js           Settings drawer: Your data (linked file, backup / restore)
-  widgets.js              Shared UI pieces: noteItem, todoItem (editable rows), richText (#tags + highlight), tagsOf, dayLabel
+  widgets.js              Shared UI pieces: noteItem, todoItem (editable rows), richText (#tags + highlight), tagsOf, dayLabel, overlay (full-screen panel)
   pwa.js                  Web-app plumbing: registers sw.js, Install button, persistent storage
 src/modules/
   index.js                THE list of tabs and modules, in order, plus where each starts on the widget board. Turn things on/off here.
@@ -116,6 +120,8 @@ src/modules/
   calendar/  timesheet/              (Calendar tab)
   search/                            (Notes tab)
   tasklist/                          (To-do tab)
+  water/                             (Today tab)
+  breaktime/  daily/  eyes/          (Break tab; breaktime/ holds one file per activity: fold, mixer, breathe, stretch)
 ```
 
 ### Layers (top depends on bottom, never the reverse)
@@ -151,7 +157,8 @@ Nothing keeps its own copy of hours or notes.
       "start": "2026-11-11T07:30:00.000Z",   // Begin day (null = not started)
       "end": null,                            // End day (null = still working)
       "notes": [{ "id": "mh2x9k3a", "t": "2026-11-11T08:05:00.000Z", "text": "Standup #meeting", "e": "2026-11-11T09:00:00.000Z" }],  // e = last edited (optional)
-      "kind": "vacation"                      // optional: holiday | vacation | sick | half
+      "kind": "vacation",                     // optional: holiday | vacation | sick | half
+      "water": 3                              // optional: glasses drunk (Water card)
     }
   },
   "tasks": [{                                // to-dos, see "To-dos and reminders" below
@@ -166,7 +173,8 @@ Nothing keeps its own copy of hours or notes.
 ```
 
 - Days are keyed by local date `YYYY-MM-DD` (`time.dateKey`). Timestamps are ISO strings.
-- Optional fields (`kind`) are left out when empty. A day with nothing in it (no start, notes or kind) is deleted from the log.
+- Optional fields (`kind`, `water`) are left out when empty. A day with nothing in it (no start, notes, kind or water) is deleted from the log.
+- Break modules keep their own small state in `mod:<id>`: `mod:breaktime` `{ days: {date: breaks}, best: {fold, mixer} }`, `mod:daily` `{ date, cells, started, solved: {date: seconds} }`, `mod:eyes` `{ on, every, date, count }`, `mod:water` `{ goal }`. No migration needed: all new and optional.
 - Tags are not stored: they are `#words` inside note text, found with `widgets.tagsOf`.
 
 ### To-dos and reminders (`core/tasks.js`, `core/reminders.js`)
@@ -224,6 +232,10 @@ All hour numbers in the UI come from this one function. Change the rules there, 
 - Cards on the board have a fixed height: content scrolls inside `.card-body` and `.is-clipped` adds a halftone edge when there is more below. Cards are CSS **containers**, so `@container` rules in `riso.css` reflow the inside (e.g. the Calendar stacks its day panel) by the card's own width.
 - No migration was needed: `settings.layout` and `board` are new optional keys, and missing means default.
 
+### Break activities (`modules/breaktime/`)
+
+Each activity is one file with `{ id, name, blurb, scored, start(el, { h, rng, score(points, right) }) }`; `start` returns a cleanup. `index.js` runs the 2-minute session around it (overlay, timer bar, score, Break done stamp, best score). To add an activity, write a file and add it to `GAMES`. A break counts when the 2 minutes finish, or after 1 minute if closed early.
+
 ### Views and modules
 
 A **view** is a tab: `registerView({ id, title })`.
@@ -249,11 +261,11 @@ export default {
 | key | what |
 |---|---|
 | `h` | element builder: `h('button.btn', { onclick }, 'Label')` |
-| `worklog` | `KINDS`, `getDay`, `dayStats`, `weekStats`, `rangeStats`, `beginDay`, `endDay`, `resumeDay`, `setTimes`, `clearTimes`, `setKind`, `setKindRange`, `addNote`, `editNote`, `deleteNote`, `allNotes` |
+| `worklog` | `KINDS`, `getDay`, `dayStats`, `weekStats`, `rangeStats`, `beginDay`, `endDay`, `resumeDay`, `setTimes`, `clearTimes`, `setKind`, `setKindRange`, `setWater`, `addNote`, `editNote`, `deleteNote`, `allNotes` |
 | `tasks` | `list`, `get`, `open`, `doneOn(date)`, `remindersOn(date)`, `dueAt`, `sortOpen`, `due`, `makeRemind`, `add(text, {remind})`, `toggle`, `edit(id, {text, remind})`, `remove`, `snooze` |
 | `reminders` | `notifyState()` (unsupported / default / granted / denied), `enableNotify()` |
 | `settings` | `get()`, `set(patch)`, `dayLengthMs()` (time at work), `workLengthMs()` (counted work) |
-| `widgets` | `noteItem(date, note, {query})` and `todoItem(task, {compact, now})`: editable rows (pencil to edit, × to delete; the to-do editor also sets the reminder). Use them wherever notes / to-dos are listed. `remindChip(task)`, `whenLabel(date)` ("Today", "Tomorrow", "Mon, 9 Nov"), `richText(text, {query})` renders `#tags` as links and highlights a search; `tagsOf(text)`; `dayLabel(key)`. |
+| `widgets` | `noteItem(date, note, {query})` and `todoItem(task, {compact, now})`: editable rows (pencil to edit, × to delete; the to-do editor also sets the reminder). Use them wherever notes / to-dos are listed. `remindChip(task)`, `whenLabel(date)` ("Today", "Tomorrow", "Mon, 9 Nov"), `richText(text, {query})` renders `#tags` as links and highlights a search; `tagsOf(text)`; `dayLabel(key)`. `overlay({ label, ink, onClose })` opens a full-screen panel and returns `{ body, close }` (one at a time, Esc closes); `overlayOpen()` says if one is showing. |
 | `time` | `dateKey`, `fromKey`, `addDays`, `startOfWeek`, `atTime`, `toHHMM`, `fmtDuration`, `fmtTime`, `fmtDate`, `DAY_NAMES`, … |
 | `nav` | `go(view, param)`, `current()`, `onChange(fn)` |
 | `onTick(fn)` | called every second with `now`; returns unsubscribe |
@@ -306,7 +318,9 @@ App icon: `src/icons/icon.svg` (pink + blue overprint with a yellow off-register
 
 **Stamps** (`.stamp` in `riso.css`): double-ring rubber stamp, rotated −8°, multiply blend, a worn-ink mask (`--stamp-wear`), and a short "thump" animation only when a milestone is reached live (not on reload). Ink: blue = Halfway, pink = Home time, ink = Day done.
 
-Meaning of inks so far: **pink** = today / now, **blue** = done / week / timesheet, **yellow** = calendar / highlight / days off, **green** = notes and tags, **orange** = to-do.
+**Overlay** (`.overlay`): full-screen halftone paper with one panel (3px ink border, 10px offset shadow in the activity's ink). Used for breaks and the eye break.
+
+Meaning of inks so far: **pink** = today / now / daily puzzle, **blue** = done / week / timesheet / water, **yellow** = calendar / highlight / days off / breaks, **green** = notes and tags / eye break, **orange** = to-do.
 
 ---
 
@@ -330,6 +344,7 @@ Code: MIT (`LICENSE`). Bundled fonts: SIL Open Font License, see `NOTICE.md`.
 
 ## Changelog
 
+- **v0.8**: New **Break** tab. **Two-minute break** with Fold & punch, Overprint (ink mixing), Breathe and Stretch, each a 2-minute full-screen session with a Break done stamp and best scores. **Daily puzzle** (5×5 picture grid from the date) with a streak. **Eye break** (20-20-20) while the day is running. **Water** card on Today, saved on the day. Shared full-screen overlay (`widgets.overlay`). Widget board default rearranged into three columns.
 - **v0.7**: Optional **widget board** layout (Settings → Layout): every card on one free 12-column grid for a small always-on monitor, **fitted exactly to the window height** (rows scale; short cards tighten their contents). Edit layout to drag, resize (mouse or keyboard), hide and add widgets; reset to defaults; links scroll to (or offer to add) the right widget; stacks on narrow windows. Tabs stays the default and switching back keeps the board for later.
 - **v0.6**: To-dos rebuilt: one list where open to-dos always belong to today and ticked ones to the day ticked, with **Added** and **Done** times (only the last tick counts). Optional **reminders** (date and/or time) with pop-ups, snooze and Windows notifications. New **To-do tab** (Open / Reminders / Done history). Calendar shows a bell for reminders and ✓n for to-dos done. **Ink stamps** at Halfway / Home time / Day done, and a "Friday in N days" line. Data migration v2→v3.
 - **v0.5.1**: Scrollbars hidden everywhere.
