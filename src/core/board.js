@@ -1,7 +1,6 @@
 // Widget board: where each module's card sits when Settings → Layout is "Widget board".
-// Saved under the `board` namespace: { items: { <moduleId>: { x, y, w, h, hidden? } }, fill? }.
-// fill (Auto-fill): cards float up into any empty space after every change, and outside Edit layout
-// they also grow into gaps left beside or below them (stretch(), drawing only; not saved).
+// Saved under the `board` namespace: { items: { <moduleId>: { x, y, w, h, hidden? } } }.
+// grow(): one card expands into the empty space beside / below it (never past the board's bottom).
 // x / w are columns (0..COLS), y / h are rows. Missing items fall back to the defaults
 // from modules/index.js (setBoardDefaults), and modules with no default go at the bottom.
 // Pure layout maths lives here; drawing and dragging live in core/board-view.js.
@@ -39,45 +38,24 @@ export function layout() {
   const ids = allModules().map((m) => m.id);
   for (const id of ids) if (saved[id] ?? defs[id]) out[id] = tidy(saved[id] ?? defs[id]);
   for (const id of ids) if (!out[id]) out[id] = tidy({ x: 0, y: bottomOf(out), w: 6, h: 8 });
-  return tighten(settle(out));
+  return settle(out);
 }
 
-export const isFill = () => !!store.get('board', {}).fill;
-export const setFill = (on) => store.set('board', { ...store.get('board', {}), fill: !!on });
-export const save = (items) => store.set('board', { ...store.get('board', {}), items });
-export const reset = () => store.set('board', isFill() ? { fill: true } : {});   // positions only; Auto-fill stays
+export const save = (items) => store.set('board', { items });
+export const reset = () => store.set('board', {});
 
-// With Auto-fill on, every change ends with the cards floated up.
-const tighten = (items) => (isFill() ? compact(items) : items);
-
-// Floats every visible card straight up until it touches another card or the top.
-export function compact(items) {
+// Grows one card into the empty cells around it: sideways first, then down to the lowest
+// card's bottom (never further, so the board doesn't get taller). Saved like any resize.
+export function grow(items, id) {
   const out = structuredClone(items);
-  const placed = [];
-  for (const id of order(out)) {
-    const it = out[id];
-    while (it.y > 0 && !placed.some((p) => overlaps(p, { ...it, y: it.y - 1 }))) it.y -= 1;
-    placed.push(it);
-  }
-  return out;
-}
-
-// Auto-fill, for drawing: each card grows into empty cells below it (down to the lowest card's
-// bottom) and beside it, so the board has no holes. Positions you saved are not changed.
-export function stretch(items) {
-  const out = structuredClone(items);
-  const ids = order(out);
+  const it = out[id];
+  const others = order(out).filter((o) => o !== id).map((o) => out[o]);
   const rows = bottomOf(out);
-  const free = (x0, x1, y0, y1, self) => ids.every((id) => id === self
-    || !overlaps(out[id], { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }));
-  const down = (id) => { const it = out[id]; while (it.y + it.h < rows && free(it.x, it.x + it.w, it.y + it.h, it.y + it.h + 1, id)) it.h += 1; };
-  for (const id of ids) down(id);
-  for (const id of ids) {
-    const it = out[id];
-    while (it.x + it.w < COLS && free(it.x + it.w, it.x + it.w + 1, it.y, it.y + it.h, id)) it.w += 1;
-    while (it.x > 0 && free(it.x - 1, it.x, it.y, it.y + it.h, id)) { it.x -= 1; it.w += 1; }
-  }
-  for (const id of ids) down(id);
+  const free = (x0, x1, y0, y1) => !others.some((o) => overlaps(o, { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }));
+  while (it.x + it.w < COLS && free(it.x + it.w, it.x + it.w + 1, it.y, it.y + it.h)) it.w += 1;
+  while (it.x > 0 && free(it.x - 1, it.x, it.y, it.y + it.h)) { it.x -= 1; it.w += 1; }
+  while (it.y > 0 && free(it.x, it.x + it.w, it.y - 1, it.y)) { it.y -= 1; it.h += 1; }
+  while (it.y + it.h < rows && it.h < MAX_H && free(it.x, it.x + it.w, it.y + it.h, it.y + it.h + 1)) it.h += 1;
   return out;
 }
 
@@ -86,7 +64,7 @@ export function stretch(items) {
 export function place(items, id, next) {
   const out = structuredClone(items);
   out[id] = tidy({ ...out[id], ...next });
-  return tighten(settle(out, id));
+  return settle(out, id);
 }
 
 // Removes overlaps: `first` keeps its spot, the rest (top to bottom) slide down until free.
@@ -106,7 +84,7 @@ function settle(items, first = null) {
 export function hide(items, id) {
   const out = structuredClone(items);
   out[id] = { ...out[id], hidden: true };
-  return tighten(out);
+  return out;
 }
 
 // Shows a hidden widget again: in an empty gap big enough for it if there is one, otherwise at
@@ -120,12 +98,12 @@ export function show(items, id) {
   for (let y = 0; y + it.h <= rows; y++) {
     for (let x = 0; x + it.w <= COLS; x++) {
       const spot = { x, y, w: it.w, h: it.h };
-      if (!shown.some((o) => overlaps(o, spot))) { out[id] = tidy(spot); return tighten(out); }
+      if (!shown.some((o) => overlaps(o, spot))) { out[id] = tidy(spot); return out; }
     }
   }
   const h = rows ? Math.min(it.h, Math.max(MIN_H + 2, Math.round(rows / 2))) : it.h;
   out[id] = tidy({ ...it, h, x: 0, y: rows });
-  return tighten(out);
+  return out;
 }
 
 // Top-to-bottom, left-to-right reading order (used for the narrow stacked layout and keyboard order).

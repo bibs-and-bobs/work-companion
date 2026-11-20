@@ -4,9 +4,10 @@
 // one spot of the final (small) sheet, and a hole there goes through all cells stacked on it.
 //
 // It gets harder as you go: two right in a row moves you up a level, a miss moves you down.
-// Higher levels use a bigger sheet (8×8), more folds, a diagonal last fold, several hole
-// shapes (circle / square / diamond), six answers, near-miss wrong answers, and sometimes the
-// question the other way round: here is the unfolded sheet, which punch made it?
+// Higher levels (up to 8) use a bigger sheet (8×8), up to 5 folds, a diagonal last fold, several
+// hole shapes (circle / square / diamond), six or eight answers with near-miss wrong answers
+// (only near misses on 7–8), and sometimes the question the other way round: here is the
+// unfolded sheet, which punch made it?
 const SIZE = 88;   // drawing size of the whole sheet, whatever its grid
 
 const LEVELS = [
@@ -17,6 +18,8 @@ const LEVELS = [
   { n: 8, folds: [3, 3], holes: [2, 3], shapes: 2, options: 6, diag: 0.35, reverse: 0.3 },
   { n: 8, folds: [3, 4], holes: [2, 2], shapes: 3, options: 6, diag: 0.45, reverse: 0.35 },
   { n: 8, folds: [4, 4], holes: [2, 3], shapes: 3, options: 6, diag: 0.5, reverse: 0.45 },
+  { n: 8, folds: [4, 5], holes: [3, 4], shapes: 3, options: 8, diag: 0.6, reverse: 0.5, near: true },
+  { n: 8, folds: [5, 5], holes: [3, 5], shapes: 3, options: 8, diag: 0.7, reverse: 0.55, near: true },
 ];
 export const MAX_LEVEL = LEVELS.length - 1;
 const SHAPES = ['o', 's', 'd'];   // circle, square, diamond: all the same mirrored, so only position matters
@@ -123,7 +126,7 @@ export function makeRound(rng, level) {
   let right;
   if (!reverse) {
     right = key(answer);
-    options = [answer, ...wrongUnfolds(rng, { answer, punched, folds, n, shapes, count: wrongCount })];
+    options = [answer, ...wrongUnfolds(rng, { answer, punched, folds, n, shapes, count: wrongCount, nearOnly: L.near })];
   } else {
     // The other way round: options are punches on the folded sheet.
     const asList = (m) => [...m].map(([s, sh]) => `${s},${sh}`);
@@ -155,7 +158,7 @@ export function makeRound(rng, level) {
 
 // Wrong answers for "which unfolded sheet?": the usual slips, closest first on higher levels:
 // one hole off by a cell, one hole the wrong shape, one unfold forgotten, mirrored the wrong way.
-function wrongUnfolds(rng, { answer, punched, folds, n, shapes, count }) {
+function wrongUnfolds(rng, { answer, punched, folds, n, shapes, count, nearOnly = false }) {
   const tf = (fn) => answer.map((c) => { const [x, y, s] = parse(c); return [...fn(x, y), s].join(','); });
   const inside = (c) => c.every((p) => { const [x, y] = parse(p); return x >= 0 && y >= 0 && x < n && y < n; });
   const near = [];
@@ -184,7 +187,8 @@ function wrongUnfolds(rng, { answer, punched, folds, n, shapes, count }) {
   const wrong = [];
   const add = (c) => { if (c.length && wrong.length < count && !seen.has(key(c))) { seen.add(key(c)); wrong.push(c); } };
   // mostly near misses, at least one "big" slip so it isn't only spot-the-difference
-  const nearShare = Math.max(1, count - 2);
+  // (top levels: nothing but near misses, so every answer looks almost right)
+  const nearShare = nearOnly ? count : Math.max(1, count - 2);
   shuffle(rng, near).slice(0, nearShare).forEach(add);
   shuffle(rng, [...forgot, ...far]).forEach(add);
   shuffle(rng, near).forEach(add);
@@ -250,7 +254,7 @@ function draw(n) {
 }
 
 const html = (h, cls, markup) => { const el = h(cls); el.innerHTML = markup; return el; };
-const LETTERS = 'ABCDEF';
+const LETTERS = 'ABCDEFGH';
 
 export default {
   id: 'fold',
@@ -265,7 +269,7 @@ export default {
     el.append(h('div.fp-top', level, prompt), steps, opts);
     let locked = false;
     let timer = 0;
-    let lvl = 2;      // level 1 is the warm-up you drop back to after misses
+    let lvl = 3;      // levels 1–2 are the warm-ups you drop back to after misses
     let streak = 0;
 
     function next() {
@@ -283,7 +287,8 @@ export default {
         ? h('div.fp-step.is-target', html(h, 'div.fp-pic', d.holes(round.answer)), h('span.fp-cap', 'Unfolded'))
         : h('div.fp-step', html(h, 'div.fp-pic', d.holes([...round.punched].map(([s, sh]) => `${s},${sh}`), round.region)), h('span.fp-cap', `${round.folds.length + 1}. Punch`));
       steps.replaceChildren(...foldSteps, last);
-      opts.classList.toggle('is-six', round.options.length > 4);
+      opts.classList.toggle('is-six', round.options.length === 6);
+      opts.classList.toggle('is-eight', round.options.length > 6);
       opts.replaceChildren(...round.options.map((o, i) => {
         const right = key(o) === round.right;
         const btn = h('button.fp-option', { 'aria-label': `Answer ${LETTERS[i]}`, onclick: () => choose(btn, right, round.level) });
