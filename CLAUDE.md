@@ -5,6 +5,7 @@ The README is the source of truth for this project: features, architecture, data
 @README.md
 
 Rules for every change:
+- BE CONCISE
 - Fit changes into the whole app, not only the file asked about. Follow the README "Adding or changing a feature" checklist.
 - Modules use `ctx` only. Day data goes through `core/worklog.js`. Hour maths only in `dayStats`/`weekStats`.
 - Changing saved data shape → bump `VERSION` and add a migration in `core/store.js`.
