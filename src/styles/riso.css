@@ -548,7 +548,8 @@ table.sheet { width: 100%; border-collapse: collapse; font-size: 13px; min-width
 }
 .fp-level[data-level="4"], .fp-level[data-level="5"] { background: var(--orange); }
 .fp-level[data-level="6"], .fp-level[data-level="7"] { background: var(--pink); }
-.fp-level[data-level="8"] { background: var(--blue); color: var(--paper); mix-blend-mode: normal; }
+.fp-level[data-level="8"], .fp-level[data-level="9"], .fp-level[data-level="10"], .fp-level[data-level="11"] { background: var(--blue); color: var(--paper); mix-blend-mode: normal; }
+.fp-level[data-level="12"], .fp-level[data-level="13"], .fp-level[data-level="14"], .fp-level[data-level="15"] { background: var(--ink); color: var(--paper); mix-blend-mode: normal; }
 .fp-step.is-target .fp-pic { outline: 3px solid var(--pink); outline-offset: 3px; border-radius: 2px; }
 .fp-options.is-six { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
 .fp-options.is-eight { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; }

@@ -4,12 +4,14 @@
 // one spot of the final (small) sheet, and a hole there goes through all cells stacked on it.
 //
 // It gets harder as you go: two right in a row moves you up a level, a miss moves you down.
-// Higher levels (up to 8) use a bigger sheet (8×8), up to 5 folds, a diagonal last fold, several
-// hole shapes (circle / square / diamond), six or eight answers with near-miss wrong answers
-// (only near misses on 7–8), and sometimes the question the other way round: here is the
-// unfolded sheet, which punch made it?
+// Up to level 15: bigger sheets (8×8, then 10×10), up to 7 folds, over folds (off-centre: a
+// narrow strip folded over the rest, not in half), one or two diagonal folds at the end,
+// hole shapes (circle / square / diamond), up to eight answers that are all near misses, and
+// sometimes the question the other way round: here is the unfolded sheet, which punch made it?
 const SIZE = 88;   // drawing size of the whole sheet, whatever its grid
 
+// diag: chance of diagonal folds at the end; diag2: of those, chance of two (corner to corner, then
+// the other diagonal). offc: chance a straight fold is an over fold (off-centre). near: only near misses.
 const LEVELS = [
   null,
   { n: 4, folds: [2, 2], holes: [1, 1], shapes: 1, options: 4, diag: 0, reverse: 0 },
@@ -20,37 +22,39 @@ const LEVELS = [
   { n: 8, folds: [4, 4], holes: [2, 3], shapes: 3, options: 6, diag: 0.5, reverse: 0.45 },
   { n: 8, folds: [4, 5], holes: [3, 4], shapes: 3, options: 8, diag: 0.6, reverse: 0.5, near: true },
   { n: 8, folds: [5, 5], holes: [3, 5], shapes: 3, options: 8, diag: 0.7, reverse: 0.55, near: true },
+  { n: 8, folds: [4, 5], holes: [3, 4], shapes: 3, options: 8, diag: 0.7, diag2: 0.2, offc: 0.3, reverse: 0.5, near: true },
+  { n: 8, folds: [5, 5], holes: [3, 5], shapes: 3, options: 8, diag: 0.75, diag2: 0.35, offc: 0.4, reverse: 0.5, near: true },
+  { n: 8, folds: [5, 6], holes: [4, 5], shapes: 3, options: 8, diag: 0.8, diag2: 0.45, offc: 0.5, reverse: 0.55, near: true },
+  { n: 10, folds: [5, 6], holes: [4, 5], shapes: 3, options: 8, diag: 0.8, diag2: 0.5, offc: 0.55, reverse: 0.55, near: true },
+  { n: 10, folds: [6, 6], holes: [4, 6], shapes: 3, options: 8, diag: 0.85, diag2: 0.6, offc: 0.6, reverse: 0.6, near: true },
+  { n: 10, folds: [6, 7], holes: [5, 6], shapes: 3, options: 8, diag: 0.9, diag2: 0.7, offc: 0.7, reverse: 0.6, near: true },
+  { n: 10, folds: [7, 7], holes: [5, 7], shapes: 3, options: 8, diag: 1, diag2: 0.8, offc: 0.8, reverse: 0.65, near: true },
 ];
 export const MAX_LEVEL = LEVELS.length - 1;
 const SHAPES = ['o', 's', 'd'];   // circle, square, diamond: all the same mirrored, so only position matters
 
-const mid = (a, b) => (a + b) / 2;
 const pick = (rng, arr) => arr[Math.floor(rng() * arr.length)];
 const between = (rng, [lo, hi]) => lo + Math.floor(rng() * (hi - lo + 1));
 const shuffle = (rng, arr) => arr.map((v) => [rng(), v]).sort((a, b) => a[0] - b[0]).map(([, v]) => v);
 
-// Half folds keep the half on the far side of the arrow; D / A fold a square along a diagonal.
+// A fold is { dir, at?, region }. Straight folds (L / R / T / B) fold the side before / after the
+// line `at` over the other side; the flap is never wider than what stays, so a half fold has `at`
+// in the middle and an over fold has it nearer the edge. D / A fold a square along a diagonal:
 // D: top-right triangle onto bottom-left. A: top-left triangle onto bottom-right.
-function after(r, f) {
-  const mx = mid(r.x0, r.x1);
-  const my = mid(r.y0, r.y1);
-  return {
-    L: { ...r, x0: mx }, R: { ...r, x1: mx },
-    T: { ...r, y0: my }, B: { ...r, y1: my },
-    D: { ...r, tri: 'D' }, A: { ...r, tri: 'A' },
-  }[f];
+// region: { x0, x1, y0, y1, tri?: ['D' | 'A', ...] }: the paper left, a rectangle cut by diagonals.
+function after(r, { dir, at }) {
+  if (dir === 'D' || dir === 'A') return { ...r, tri: [...(r.tri ?? []), dir] };
+  return { L: { ...r, x0: at }, R: { ...r, x1: at }, T: { ...r, y0: at }, B: { ...r, y1: at } }[dir];
 }
 
-function reflect(x, y, { dir, region: r }) {
-  const mx = mid(r.x0, r.x1);
-  const my = mid(r.y0, r.y1);
+function reflect(x, y, { dir, at, region: r }) {
   const s = r.x1 - r.x0;
   const u = x - r.x0;
   const v = y - r.y0;
-  if (dir === 'L' && x < mx) x = 2 * mx - 1 - x;
-  if (dir === 'R' && x >= mx) x = 2 * mx - 1 - x;
-  if (dir === 'T' && y < my) y = 2 * my - 1 - y;
-  if (dir === 'B' && y >= my) y = 2 * my - 1 - y;
+  if (dir === 'L' && x < at) x = 2 * at - 1 - x;
+  if (dir === 'R' && x >= at) x = 2 * at - 1 - x;
+  if (dir === 'T' && y < at) y = 2 * at - 1 - y;
+  if (dir === 'B' && y >= at) y = 2 * at - 1 - y;
   if (dir === 'D' && u > v) { x = r.x0 + v; y = r.y0 + u; }
   if (dir === 'A' && u + v < s - 1) { x = r.x0 + s - 1 - v; y = r.y0 + s - 1 - u; }
   return [x, y];
@@ -68,13 +72,13 @@ const parse = (c) => { const [x, y, s] = c.split(','); return [Number(x), Number
 
 function spotsOf(r) {
   const out = [];
+  const s = r.x1 - r.x0;
   for (let y = r.y0; y < r.y1; y++) for (let x = r.x0; x < r.x1; x++) {
     const u = x - r.x0;
     const v = y - r.y0;
-    const s = r.x1 - r.x0;
     // after a diagonal fold only the kept triangle is paper (holes on the crease would look odd)
-    if (r.tri === 'D' && !(u < v)) continue;
-    if (r.tri === 'A' && !(u + v > s - 1)) continue;
+    if (r.tri?.includes('D') && !(u < v)) continue;
+    if (r.tri?.includes('A') && !(u + v > s - 1)) continue;
     out.push(`${x},${y}`);
   }
   return out;
@@ -89,30 +93,62 @@ const unfold = (punched, folds, n) => {
   return out;
 };
 
+// Straight folds possible on a rectangle: half folds when the side is even, over folds
+// (a strip of k < half folded over) when the level allows them.
+function straightOpts(rng, r, offc) {
+  if (r.tri) return [];
+  const out = [];
+  const axis = (lo, hi, a, b) => {
+    const w = hi - lo;
+    if (w < 2) return;
+    if (offc > 0 && w >= 3 && (rng() < offc || w % 2)) {
+      const k = 1 + Math.floor(rng() * Math.floor((w - 1) / 2));
+      out.push({ dir: a, at: lo + k }, { dir: b, at: hi - k });
+    } else if (w % 2 === 0) out.push({ dir: a, at: lo + w / 2 }, { dir: b, at: lo + w / 2 });
+  };
+  axis(r.x0, r.x1, 'L', 'R');
+  axis(r.y0, r.y1, 'T', 'B');
+  return out;
+}
+
+// Picks the folds for a level. Diagonals need a square, so it tries a few times, then with one
+// or two straight folds fewer, and only then gives up on the diagonal.
+function makeFolds(rng, L, n, diags = rng() < L.diag ? (rng() < (L.diag2 ?? 0) ? 2 : 1) : 0) {
+  let best = null;
+  for (let t = 0; t < 300; t++) {
+    let region = { x0: 0, x1: n, y0: 0, y1: n };
+    const folds = [];
+    const count = between(rng, L.folds);
+    const slack = diags ? Math.floor(t / 100) : 0;
+    for (let i = 0; i < count - diags - slack; i++) {
+      const opts = straightOpts(rng, region, L.offc ?? 0);
+      if (!opts.length) break;
+      const f = pick(rng, opts);
+      folds.push({ ...f, region });
+      region = after(region, f);
+    }
+    const w = region.x1 - region.x0;
+    if (diags) {
+      if (w !== region.y1 - region.y0 || w < (diags === 2 ? 4 : 2)) continue;
+      const first = pick(rng, ['D', 'A']);
+      for (const dir of diags === 2 ? [first, first === 'D' ? 'A' : 'D'] : [first]) {
+        folds.push({ dir, region });
+        region = after(region, { dir });
+      }
+    }
+    const round = { folds, region };
+    if (spotsOf(region).length < (diags ? 1 : L.holes[0])) continue;
+    if (folds.length >= L.folds[0] - slack) return round;
+    if (!best || folds.length > best.folds.length) best = round;
+  }
+  if (best) return best;
+  return diags ? makeFolds(rng, L, n, diags - 1) : { folds: [], region: { x0: 0, x1: n, y0: 0, y1: n } };
+}
+
 export function makeRound(rng, level) {
   const L = LEVELS[Math.min(MAX_LEVEL, Math.max(1, level))];
   const n = L.n;
-  let region = { x0: 0, x1: n, y0: 0, y1: n };
-  const folds = [];
-  const count = between(rng, L.folds);
-  for (let i = 0; i < count; i++) {
-    const w = region.x1 - region.x0;
-    const hgt = region.y1 - region.y0;
-    const last = i === count - 1;
-    if (last && w === hgt && w > 1 && rng() < L.diag) {
-      const dir = pick(rng, ['D', 'A']);
-      folds.push({ dir, region });
-      region = after(region, dir);
-      break;
-    }
-    const opts = [];
-    if (w > 1 && w % 2 === 0) opts.push('L', 'R');
-    if (hgt > 1 && hgt % 2 === 0) opts.push('T', 'B');
-    if (!opts.length) break;
-    const dir = pick(rng, opts);
-    folds.push({ dir, region });
-    region = after(region, dir);
-  }
+  const { folds, region } = makeFolds(rng, L, n);
 
   const spots = spotsOf(region);
   const shapes = SHAPES.slice(0, L.shapes);
@@ -199,39 +235,71 @@ function wrongUnfolds(rng, { answer, punched, folds, n, shapes, count, nearOnly 
 }
 
 // ── Drawing (SVG strings; nothing user-written goes in here) ──
+// Geometry in cell units: each fold has a "kept side" g(p) >= 0, and a mirror across its line.
+function plane({ dir, at, region: r }) {
+  const s = r.x1 - r.x0;
+  return {
+    L: ([x]) => x - at, R: ([x]) => at - x, T: ([, y]) => y - at, B: ([, y]) => at - y,
+    D: ([x, y]) => (y - r.y0) - (x - r.x0), A: ([x, y]) => (x - r.x0) + (y - r.y0) - s,
+  }[dir];
+}
+function mirror([x, y], { dir, at, region: r }) {
+  const s = r.x1 - r.x0;
+  if (dir === 'L' || dir === 'R') return [2 * at - x, y];
+  if (dir === 'T' || dir === 'B') return [x, 2 * at - y];
+  if (dir === 'D') return [r.x0 + (y - r.y0), r.y0 + (x - r.x0)];
+  return [r.x0 + s - (y - r.y0), r.y0 + s - (x - r.x0)];
+}
+// Keeps the part of a convex polygon where g >= 0.
+function clip(poly, g) {
+  const out = [];
+  poly.forEach((a, i) => {
+    const b = poly[(i + 1) % poly.length];
+    const ga = g(a);
+    const gb = g(b);
+    if (ga >= 0) out.push(a);
+    if ((ga >= 0) !== (gb >= 0)) { const t = ga / (ga - gb); out.push([a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])]); }
+  });
+  return out;
+}
+function regionPoly(r) {
+  let poly = [[r.x0, r.y0], [r.x1, r.y0], [r.x1, r.y1], [r.x0, r.y1]];
+  for (const dir of r.tri ?? []) poly = clip(poly, plane({ dir, region: { ...r, tri: null } }));
+  return poly;
+}
+const centre = (poly) => poly.reduce(([a, b], [x, y]) => [a + x / poly.length, b + y / poly.length], [0, 0]);
+
+const NAMES = {
+  L: 'left side over to the right', R: 'right side over to the left', T: 'top down', B: 'bottom up',
+  D: 'top-right corner down to bottom-left', A: 'top-left corner down to bottom-right',
+};
+
 function draw(n) {
   const CELL = SIZE / n;
-  const rect = (r, cls) => `<rect class="${cls}" x="${r.x0 * CELL}" y="${r.y0 * CELL}" width="${(r.x1 - r.x0) * CELL}" height="${(r.y1 - r.y0) * CELL}"/>`;
-  const poly = (pts, cls) => `<polygon class="${cls}" points="${pts.map(([x, y]) => `${x * CELL},${y * CELL}`).join(' ')}"/>`;
-  const tri = (r, which) => poly({
-    D: [[r.x0, r.y0], [r.x0, r.y1], [r.x1, r.y1]], Dflap: [[r.x0, r.y0], [r.x1, r.y0], [r.x1, r.y1]],
-    A: [[r.x1, r.y0], [r.x1, r.y1], [r.x0, r.y1]], Aflap: [[r.x0, r.y0], [r.x1, r.y0], [r.x0, r.y1]],
-  }[which], which.endsWith('flap') ? 'fp-flap' : 'fp-paper');
-  const paper = (r) => (r.tri ? tri(r, r.tri) : rect(r, 'fp-paper'));
-  const full = { x0: 0, x1: n, y0: 0, y1: n };
+  const pts = (poly) => poly.map(([x, y]) => `${x * CELL},${y * CELL}`).join(' ');
+  const shape = (poly, cls) => `<polygon class="${cls}" points="${pts(poly)}"/>`;
+  const paper = (r) => shape(regionPoly(r), 'fp-paper');
+  const full = `<rect class="fp-ghost" x="0" y="0" width="${SIZE}" height="${SIZE}"/>`;
   const svg = (inner, label) => `<svg viewBox="-6 -6 ${SIZE + 12} ${SIZE + 12}" role="img" aria-label="${label}">${inner}</svg>`;
 
-  function step({ dir, region: r }) {
-    const mx = mid(r.x0, r.x1) * CELL;
-    const my = mid(r.y0, r.y1) * CELL;
-    const [X0, X1, Y0, Y1] = [r.x0 * CELL, r.x1 * CELL, r.y0 * CELL, r.y1 * CELL];
-    const q = Math.min(X1 - X0, Y1 - Y0) * 0.22 + 6;
-    let line; let flap; let arrow;
-    if (dir === 'D' || dir === 'A') {
-      line = dir === 'D' ? [X0, Y0, X1, Y1] : [X1, Y0, X0, Y1];
-      flap = tri(r, `${dir}flap`);
-      const d = q * 0.7;
-      arrow = dir === 'D' ? [mx + d, my - d, mx - d, my + d] : [mx - d, my - d, mx + d, my + d];
-    } else {
-      line = dir === 'L' || dir === 'R' ? [mx, Y0, mx, Y1] : [X0, my, X1, my];
-      flap = rect({ L: { ...r, x1: mid(r.x0, r.x1) }, R: { ...r, x0: mid(r.x0, r.x1) }, T: { ...r, y1: mid(r.y0, r.y1) }, B: { ...r, y0: mid(r.y0, r.y1) } }[dir], 'fp-flap');
-      arrow = { L: [mx - q, my, mx + q, my], R: [mx + q, my, mx - q, my], T: [mx, my - q, mx, my + q], B: [mx, my + q, mx, my - q] }[dir];
-    }
-    const [x1, y1, x2, y2] = arrow;
-    const bend = dir === 'L' || dir === 'R' ? `${(x1 + x2) / 2} ${y1 - q}` : dir === 'T' || dir === 'B' ? `${x1 - q} ${(y1 + y2) / 2}` : `${mid(x1, x2) - q * 0.5} ${mid(y1, y2) - q * 0.5}`;
-    return svg(`${rect(full, 'fp-ghost')}${rect(r, 'fp-paper')}${flap}<line class="fp-fold" x1="${line[0]}" y1="${line[1]}" x2="${line[2]}" y2="${line[3]}"/>`
-      + `<path class="fp-arrow" d="M${x1} ${y1} Q${bend} ${x2} ${y2}"/><circle class="fp-arrow-head" cx="${x2}" cy="${y2}" r="3.5"/>`,
-    `Fold ${{ L: 'left over right', R: 'right over left', T: 'top down', B: 'bottom up', D: 'top-right corner down to bottom-left', A: 'top-left corner down to bottom-right' }[dir]}`);
+  function step(f) {
+    const poly = regionPoly(f.region);
+    const g = plane(f);
+    const flap = clip(poly, (p) => -g(p));
+    // the crease: where the paper's edge crosses the fold line
+    const cut = clip(poly, g).filter((p) => Math.abs(g(p)) < 1e-6);
+    const [l0, l1] = [cut[0], cut[cut.length - 1]];
+    const c1 = centre(flap);
+    const c2 = mirror(c1, f);
+    const at = (t) => [c1[0] + t * (c2[0] - c1[0]), c1[1] + t * (c2[1] - c1[1])];
+    const [p1, p2] = [at(0.12), at(0.88)];
+    const bend = [(c1[0] + c2[0]) / 2 - (c2[1] - c1[1]) * 0.35, (c1[1] + c2[1]) / 2 + (c2[0] - c1[0]) * 0.35];
+    const P = ([x, y]) => `${x * CELL} ${y * CELL}`;
+    const over = f.at !== undefined && Math.abs(f.at * 2 - ((f.dir === 'L' || f.dir === 'R') ? f.region.x0 + f.region.x1 : f.region.y0 + f.region.y1)) > 0.01;
+    return svg(`${full}${shape(poly, 'fp-paper')}${shape(flap, 'fp-flap')}`
+      + `<line class="fp-fold" x1="${l0[0] * CELL}" y1="${l0[1] * CELL}" x2="${l1[0] * CELL}" y2="${l1[1] * CELL}"/>`
+      + `<path class="fp-arrow" d="M${P(p1)} Q${P(bend)} ${P(p2)}"/><circle class="fp-arrow-head" cx="${p2[0] * CELL}" cy="${p2[1] * CELL}" r="3.5"/>`,
+    `Fold ${over ? 'a strip of the ' : ''}${NAMES[f.dir]}`);
   }
 
   const hole = (c) => {
@@ -245,7 +313,7 @@ function draw(n) {
   };
 
   function holes(cells, region = null) {
-    const sheet = region ? rect(full, 'fp-ghost') + paper(region) : rect(full, 'fp-paper');
+    const sheet = region ? full + paper(region) : `<rect class="fp-paper" x="0" y="0" width="${SIZE}" height="${SIZE}"/>`;
     const grid = region ? '' : Array.from({ length: n - 1 }, (_, i) =>
       `<line class="fp-grid" x1="${(i + 1) * CELL}" y1="0" x2="${(i + 1) * CELL}" y2="${SIZE}"/><line class="fp-grid" x1="0" y1="${(i + 1) * CELL}" x2="${SIZE}" y2="${(i + 1) * CELL}"/>`).join('');
     return svg(sheet + grid + cells.map(hole).join(''), `${cells.length} hole${cells.length === 1 ? '' : 's'}`);

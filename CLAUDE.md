@@ -6,6 +6,7 @@ The README is the source of truth for this project: features, architecture, data
 
 Rules for every change:
 - BE CONCISE
+- When a task is done: commit and push to the session's working branch, every time.
 - Replies to the user: bare minimum words. Just list the basic changes, no explanations unless asked.
 - Fit changes into the whole app, not only the file asked about. Follow the README "Adding or changing a feature" checklist.
 - Modules use `ctx` only. Day data goes through `core/worklog.js`. Hour maths only in `dayStats`/`weekStats`.
