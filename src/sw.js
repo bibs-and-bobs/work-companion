@@ -1,7 +1,8 @@
-// Offline support. Network first (so updates show up straight away),
+// Offline support. Network first (so updates show up straight away; `no-cache` makes the browser
+// check with the server instead of reusing GitHub Pages' 10-minute HTTP cache),
 // falling back to the last cached copy when offline. Every same-origin file
 // is cached as it's fetched, so there's no file list to maintain.
-const CACHE = 'work-companion-v2';
+const CACHE = 'work-companion-v3';
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', 'index.html'])).then(() => self.skipWaiting()));
@@ -17,7 +18,7 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
   e.respondWith(
-    fetch(req)
+    fetch(req, { cache: 'no-cache' })
       .then((res) => {
         if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
         return res;
