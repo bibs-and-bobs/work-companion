@@ -33,7 +33,7 @@ setBoardDefaults({
   breaktime: { x: 9, y: 7, w: 3, h: 7 },
   daily:     { x: 0, y: 14, w: 4, h: 8, hidden: true },
   eyes:      { x: 4, y: 14, w: 4, h: 4, hidden: true },
-  calendar:  { x: 0, y: 22, w: 12, h: 12, hidden: true },
+  calendar:  { x: 0, y: 22, w: 7, h: 11, hidden: true },
   search:    { x: 7, y: 14, w: 5, h: 6, hidden: true },
   timesheet: { x: 0, y: 34, w: 12, h: 10, hidden: true },
   tasklist:  { x: 0, y: 44, w: 6, h: 10, hidden: true },
