@@ -2,11 +2,15 @@
 // The cards are the same elements as in the tab layout; they are only moved here and
 // positioned, never mounted twice, so switching layouts keeps what you were typing.
 //
-// Edit layout: drag a card to move it, drag its corner to resize, × to take it off the board.
+// Edit layout: drag a card to move it, drag any corner to resize, × to take it off the board.
+// Auto-fill (toolbar while editing, or Settings → Layout): cards float up into empty space, and
+// outside Edit layout they also grow into gaps beside / below them.
 // Keyboard: focus a card's handle, arrows move it, Shift + arrows resize it, Esc finishes.
 // Under ~700px wide the board stacks the cards in reading order instead (CSS).
 import * as board from './board.js';
 import * as store from './store.js';
+
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 export function boardView({ h, cards, modules, firstView }) {
   const el = h('main.board', { hidden: true, 'aria-label': 'Widget board' });
@@ -28,7 +32,14 @@ export function boardView({ h, cards, modules, firstView }) {
   const resetBtn = h('button.link', { onclick: () => {
     if (confirm('Put every widget back where it started?')) board.reset();
   } }, 'Reset');
-  const toolbar = h('div.board-tools', addSel, resetBtn, editBtn);
+  const fillBtn = h('button.link.board-fill', { onclick: () => board.setFill(!board.isFill()),
+    title: 'Cards move up into empty space and grow to fill gaps' });
+  const syncFill = () => {
+    fillBtn.textContent = `Auto-fill: ${board.isFill() ? 'on' : 'off'}`;
+    fillBtn.setAttribute('aria-pressed', String(board.isFill()));
+  };
+  syncFill();
+  const toolbar = h('div.board-tools', addSel, fillBtn, resetBtn, editBtn);
 
   // ── Edit chrome on every card (only visible while editing) ──
   for (const [id, card] of cards) {
@@ -44,10 +55,14 @@ export function boardView({ h, cards, modules, firstView }) {
       size,
       h('button.board-hide', { type: 'button', title: 'Take off the board', 'aria-label': `Take ${titles[id]} off the board`,
         onclick: () => commit(board.hide(items, id)) }, '×'),
-      h('span.board-resize', { 'aria-hidden': 'true', title: 'Drag to resize', onpointerdown: (e) => drag(e, id, 'resize') })));
+      ...['nw', 'ne', 'sw', 'se'].map((corner) => h(`span.board-resize.is-${corner}`, {
+        'aria-hidden': 'true', title: 'Drag to resize', onpointerdown: (e) => drag(e, id, corner),
+      }))));
   }
 
-  function render(view = items) {
+  // Outside Edit layout, Auto-fill also grows cards into the gaps (drawing only, not saved).
+  function render(base = items) {
+    const view = !editing && board.isFill() ? board.stretch(base) : base;
     const order = board.order(view);
     for (const [id, card] of cards) {
       const it = view[id];
@@ -96,6 +111,7 @@ export function boardView({ h, cards, modules, firstView }) {
     editBtn.textContent = editing ? 'Done' : 'Edit layout';
     editBtn.setAttribute('aria-pressed', String(editing));
     editBtn.classList.toggle('btn-primary-sm', editing);
+    if (active) render();   // editing shows real sizes; Auto-fill's stretching comes back on Done
   }
 
   // Size of one column / row step in pixels, read from the live grid.
@@ -108,6 +124,8 @@ export function boardView({ h, cards, modules, firstView }) {
     return { x: col + colGap, y: (parseFloat(cs.getPropertyValue('--row')) || 40) + rowGap };
   }
 
+  // mode: 'move', or the corner being dragged to resize ('nw' | 'ne' | 'sw' | 'se').
+  // The opposite corner stays put.
   function drag(e, id, mode) {
     if (!editing || e.button !== 0) return;
     e.preventDefault();
@@ -119,11 +137,12 @@ export function boardView({ h, cards, modules, firstView }) {
     let preview = items;
     dragging = true;
     card.classList.add('is-dragging');
-    document.body.classList.add(mode === 'move' ? 'board-moving' : 'board-resizing');
+    const cursorCls = mode === 'move' ? 'board-moving' : mode === 'ne' || mode === 'sw' ? 'board-resizing-nesw' : 'board-resizing';
+    document.body.classList.add(cursorCls);
     const move = (ev) => {
       const dx = Math.round((ev.clientX - sx) / step.x);
       const dy = Math.round((ev.clientY + window.scrollY - sy) / step.y);
-      const next = mode === 'move' ? { x: start.x + dx, y: start.y + dy } : { w: start.w + dx, h: start.h + dy };
+      const next = mode === 'move' ? { x: start.x + dx, y: start.y + dy } : resized(start, mode, dx, dy);
       preview = board.place(items, id, next);
       render(preview);
       if (ev.clientY > innerHeight - 30) window.scrollBy(0, 14);
@@ -134,7 +153,7 @@ export function boardView({ h, cards, modules, firstView }) {
       window.removeEventListener('pointerup', end);
       window.removeEventListener('pointercancel', end);
       card.classList.remove('is-dragging');
-      document.body.classList.remove('board-moving', 'board-resizing');
+      document.body.classList.remove(cursorCls);
       dragging = false;
       if (preview !== items) commit(preview);
       else fit();
@@ -142,6 +161,21 @@ export function boardView({ h, cards, modules, firstView }) {
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', end);
     window.addEventListener('pointercancel', end);
+  }
+
+  function resized(st, corner, dx, dy) {
+    const right = st.x + st.w;
+    const bottom = st.y + st.h;
+    const out = { ...st };
+    if (corner.includes('w')) {
+      out.x = clamp(st.x + dx, 0, right - board.MIN_W);
+      out.w = right - out.x;
+    } else out.w = clamp(st.w + dx, board.MIN_W, board.COLS - st.x);
+    if (corner.includes('n')) {
+      out.y = clamp(st.y + dy, Math.max(0, bottom - board.MAX_H), bottom - board.MIN_H);
+      out.h = bottom - out.y;
+    } else out.h = clamp(st.h + dy, board.MIN_H, board.MAX_H);
+    return out;
   }
 
   function keyMove(e, id) {
@@ -174,6 +208,7 @@ export function boardView({ h, cards, modules, firstView }) {
 
   store.onChange((ns) => {
     if (ns !== 'board') return;
+    syncFill();
     items = board.layout();
     if (active) render();
   });
@@ -247,11 +282,15 @@ export function boardView({ h, cards, modules, firstView }) {
 // Settings drawer section: choose the layout.
 export function layoutPanel({ h, settings }) {
   const s = settings.get();
+  const fill = h('input', { type: 'checkbox', checked: board.isFill(), onchange: () => board.setFill(fill.checked) });
+  store.onChange((ns) => { if (ns === 'board') fill.checked = board.isFill(); });
   const opt = (value, label) => h('label.chip',
     h('input', { type: 'radio', name: 'layout', value, checked: s.layout === value,
       onchange: () => settings.set({ layout: value }) }),
     h('span', label));
   return h('div.form',
     h('div.field', h('span.field-label', 'Show the app as'), h('div.chips', opt('tabs', 'Tabs'), opt('board', 'Widget board')),
-      h('span.field-hint', 'Widget board puts everything on one screen. Use Edit layout to move, resize and hide widgets. Tabs is the classic look; your board is kept for next time.')));
+      h('span.field-hint', 'Widget board puts everything on one screen. Use Edit layout to move, resize and hide widgets. Tabs is the classic look; your board is kept for next time.')),
+    h('div.field', h('span.field-label', 'Widget board'), h('div.chips', h('label.chip', fill, h('span', 'Auto-fill gaps'))),
+      h('span.field-hint', 'Widgets move up into empty space and grow to fill gaps, so the board has no holes.')));
 }

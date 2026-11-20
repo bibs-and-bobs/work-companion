@@ -1,6 +1,8 @@
-// Calendar: month overview of logged days, plus a detail panel for one day:
-// start/end times, day type (holiday, vacation, sick, half day), reminders and finished to-dos, and notes.
-// Cells show a bell for days with reminders and ✓n for to-dos ticked off that day.
+// Calendar: month overview of logged days. Click a day for a pop-up to fix its start/end
+// times and set its day type (holiday, vacation, sick, half day), optionally through a later
+// date. That day's notes and to-dos sit folded away at the bottom of the pop-up: the Today,
+// Notes and To-do cards are the main place for them.
+// Cells show a bell for days with reminders, ✓n for to-dos ticked off that day and ✎n for notes.
 export default {
   id: 'calendar',
   title: 'Calendar',
@@ -10,29 +12,16 @@ export default {
 
   mount(el, { h, worklog, tasks, time, nav, widgets, onTick, onData }) {
     const { KINDS } = worklog;
-    const { dateKey, fromKey, addDays, startOfWeek, fmtDuration: dur, fmtTime, fmtDate, toHHMM, atTime } = time;
+    const { dateKey, fromKey, addDays, startOfWeek, fmtDuration: dur, fmtDate, toHHMM, atTime } = time;
 
     let selected = dateKey(new Date());
     let month = new Date(); month.setDate(1);
+    let pop = null;   // the open day pop-up: { key, refresh, close }
 
     const monthTitle = h('h3.cal-month');
     const grid = h('div.cal-grid');
-    const detailHead = h('div.detail-head');
-    const detailTimes = h('div.detail-times');
-    const detailKind = h('div.detail-kind');
-    const todoList = h('ul.todo-list');
-    const todoInput = h('input.input', {
-      type: 'text', 'aria-label': 'Add a task',
-      onkeydown: (e) => { if (e.key === 'Enter') addTodo(); },
-    });
-    const todoForm = h('div.note-form', todoInput, h('button.btn', { onclick: () => addTodo() }, 'Add'));
-    const noteList = h('ol.note-list.note-list-full');
-    const noteInput = h('input.input', {
-      type: 'text', placeholder: 'Add a note to this day', 'aria-label': 'Add a note to this day',
-      onkeydown: (e) => { if (e.key === 'Enter') addNote(); },
-    });
-
     const shiftMonth = (n) => { month = new Date(month.getFullYear(), month.getMonth() + n, 1); renderGrid(); };
+    const toToday = () => { const t = new Date(); month = new Date(t.getFullYear(), t.getMonth(), 1); renderGrid(); };
 
     el.append(h('div.cal',
       h('section.cal-main',
@@ -40,33 +29,10 @@ export default {
           h('button.btn.btn-icon', { onclick: () => shiftMonth(-1), 'aria-label': 'Previous month' }, '←'),
           monthTitle,
           h('button.btn.btn-icon', { onclick: () => shiftMonth(1), 'aria-label': 'Next month' }, '→'),
-          h('button.btn', { onclick: () => nav.go('calendar', dateKey(new Date())) }, 'Today')),
+          h('button.btn', { onclick: toToday }, 'Today')),
         h('div.cal-weekdays', time.DAY_NAMES.map((n) => h('span', n))),
-        grid),
-      h('section.cal-detail',
-        detailHead, detailTimes, detailKind,
-        h('h4.detail-sub', 'To-dos'),
-        todoList,
-        todoForm,
-        h('h4.detail-sub', 'Notes'),
-        noteList,
-        h('div.note-form', noteInput, h('button.btn', { onclick: addNote }, 'Add')))));
-
-    // On today: a plain to-do. On a future day: a to-do with a reminder that morning.
-    function addTodo() {
-      if (!todoInput.value.trim()) return;
-      const future = selected > dateKey(new Date());
-      tasks.add(todoInput.value, { remind: future ? { date: selected } : null });
-      todoInput.value = '';
-      todoInput.focus();
-    }
-
-    function addNote() {
-      if (!noteInput.value.trim()) return;
-      worklog.addNote(noteInput.value, fromKey(selected), new Date());
-      noteInput.value = '';
-      noteInput.focus();
-    }
+        grid,
+        h('p.field-hint.cal-hint', 'Click a day to fix its times or mark it as a holiday, vacation, sick or half day.'))));
 
     // Compact "7:45" for small cells.
     const hhmm = (ms) => { const m = Math.floor(ms / 60_000); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`; };
@@ -90,16 +56,23 @@ export default {
         cells.push(h(`button.cal-cell.state-${d.state}`
           + `${date.getMonth() !== month.getMonth() ? '.is-outside' : ''}`
           + `${d.isToday ? '.is-today' : ''}${d.key === selected ? '.is-selected' : ''}`,
-          { onclick: () => nav.go('calendar', d.key), 'aria-label': fmtDate(date) },
+          { onclick: () => openCell(d.key), 'aria-label': `${fmtDate(date)}: edit times and day type`, 'aria-haspopup': 'dialog' },
           h('span.cal-num', date.getDate()),
           h('span.cal-bar', h('span.cal-fill', { style: { width: `${d.pct * 100}%` } })),
           h('span.cal-foot', h('span', hours || (d.kind ? KINDS[d.kind].tag : '')),
-            h('span.cal-icons',
+            h('span.cal-icons', ...[
               reminders.has(d.key) ? h('span.bell', { title: 'Reminder' }) : null,
               doneCount.get(d.key) ? h('span.cal-done', { title: 'To-dos done' }, `✓${doneCount.get(d.key)}`) : null,
-              d.notes.length ? h('span.cal-notes', { title: 'Notes' }, `✎${d.notes.length}`) : null))));
+              d.notes.length ? h('span.cal-notes', { title: 'Notes' }, `✎${d.notes.length}`) : null,
+            ].filter(Boolean)))));
       }
       grid.replaceChildren(...cells);
+    }
+
+    // The URL follows the selected day (#/calendar/2026-11-11); the pop-up opens right away.
+    function openCell(key) {
+      nav.go('calendar', key);
+      openDay(key);
     }
 
     const STATE_TEXT = {
@@ -108,93 +81,148 @@ export default {
     };
     const stateText = (d) => (d.state === 'leave' ? KINDS[d.kind].label : STATE_TEXT[d.state]);
 
-    function renderDetail(now = new Date()) {
-      const date = fromKey(selected);
-      const d = worklog.dayStats(date, now);
-      detailHead.replaceChildren(...[
-        h('h3.detail-date', fmtDate(date)),
-        h(`span.badge.state-${d.state}`, stateText(d)),
-        d.kind && d.state !== 'leave' ? h('span.badge', KINDS[d.kind].label) : null,
-        d.start ? h('span.detail-worked', `${dur(d.workedMs)} worked`) : null,
-      ].filter(Boolean));   // replaceChildren(null) would print the word "null"
+    // ── Day pop-up: times + day type (Save / Cancel), notes and to-dos folded away ──
+    function openDay(key) {
+      selected = key;
+      renderGrid();
+      const date = fromKey(key);
+      const d = worklog.dayStats(date, new Date());
+      const ov = widgets.overlay({ label: fmtDate(date), ink: 'yellow', size: 'small', onClose: () => { if (pop?.key === key) pop = null; } });
 
+      const head = h('div.detail-head');
       const startIn = h('input.input', { type: 'time', value: d.start ? toHHMM(d.start) : '', 'aria-label': 'Start time' });
-      const endIn = h('input.input', { type: 'time', value: d.end ? toHHMM(d.end) : '', disabled: !d.start, 'aria-label': 'End time' });
-      const hint = h('p.field-hint');
-      if (d.start && !d.end && !d.isToday) hint.textContent = 'Never ended, so it counts as a full day.';
-      if (!d.start && !d.isFuture) hint.textContent = 'Forgot to press Begin day? Set the start time here.';
+      const endIn = h('input.input', { type: 'time', value: d.end ? toHHMM(d.end) : '', 'aria-label': 'End time' });
+      const timeHint = h('p.field-hint');
+      if (d.start && !d.end && !d.isToday) timeHint.textContent = 'Never ended, so it counts as a full day.';
+      else if (!d.start && !d.isFuture) timeHint.textContent = 'Forgot to press Begin day? Set the start time here.';
+      else if (d.isFuture) timeHint.textContent = 'Times can be set once the day has come.';
+      startIn.disabled = endIn.disabled = d.isFuture;
+      const syncEnd = () => { endIn.disabled = d.isFuture || !startIn.value; };
+      startIn.addEventListener('input', syncEnd);
+      syncEnd();
 
-      startIn.addEventListener('blur', () => {
-        if (startIn.value === (d.start ? toHHMM(d.start) : '')) return;
-        if (!startIn.value) return worklog.clearTimes(date);
-        const start = atTime(date, startIn.value);
-        const end = d.end && d.end > start ? undefined : null;
-        worklog.setTimes(date, { start, end });
-      });
-      endIn.addEventListener('blur', () => {
-        if (endIn.value === (d.end ? toHHMM(d.end) : '')) return;
-        if (!endIn.value) return worklog.setTimes(date, { end: null });
-        const end = atTime(date, endIn.value);
-        if (end <= d.start) { hint.textContent = 'End must be after start.'; endIn.value = d.end ? toHHMM(d.end) : ''; return; }
-        worklog.setTimes(date, { end });
-      });
+      const kindSel = h('select.input', { 'aria-label': 'Day type' },
+        [h('option', { value: '' }, 'Normal day'), ...Object.entries(KINDS).map(([k, v]) => h('option', { value: k }, v.label))]);
+      kindSel.value = d.kind ?? '';
+      const through = h('input.input', { type: 'date', min: key, 'aria-label': 'Apply through date' });
+      const kindHint = h('p.field-hint');
+      const syncKind = () => {
+        kindHint.textContent = through.value
+          ? `Applies ${kindSel.value ? KINDS[kindSel.value].label.toLowerCase() : 'normal day'} up to ${fmtDate(fromKey(through.value))}. Weekends and days you already worked are skipped.`
+          : 'Holiday, vacation and sick days are not counted in the week. A half day halves that day. Pick a later date to mark a run of days.';
+      };
+      kindSel.addEventListener('change', syncKind);
+      through.addEventListener('change', syncKind);
+      syncKind();
 
-      for (const inp of [startIn, endIn]) inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') inp.blur(); });
+      const notesSum = h('span');
+      const noteList = h('ol.note-list.note-list-full');
+      const noteInput = h('input.input', { type: 'text', placeholder: 'Add a note to this day', 'aria-label': 'Add a note to this day',
+        onkeydown: (e) => { if (e.key === 'Enter') addNote(); } });
+      const todoList = h('ul.todo-list');
+      const todoInput = h('input.input', { type: 'text', 'aria-label': 'Add a task',
+        placeholder: d.isToday ? 'Add a to-do' : 'Remind me about… (that morning)',
+        onkeydown: (e) => { if (e.key === 'Enter') addTodo(); } });
+      const todoForm = h('div.note-form', todoInput, h('button.btn', { onclick: () => addTodo() }, 'Add'));
+      todoForm.hidden = d.isPast;
 
-      detailTimes.replaceChildren(
+      function addNote() {
+        if (!noteInput.value.trim()) return;
+        worklog.addNote(noteInput.value, date, new Date());
+        noteInput.value = '';
+        noteInput.focus();
+      }
+      // On today: a plain to-do. On a future day: a to-do with a reminder that morning.
+      function addTodo() {
+        if (!todoInput.value.trim()) return;
+        tasks.add(todoInput.value, { remind: key > dateKey(new Date()) ? { date: key } : null });
+        todoInput.value = '';
+        todoInput.focus();
+      }
+
+      // Live parts (head, notes, to-dos) follow data changes; the form keeps what you typed.
+      function refresh() {
+        const now = new Date();
+        const s = worklog.dayStats(date, now);
+        head.replaceChildren(...[
+          h(`span.badge.state-${s.state}`, stateText(s)),
+          s.kind && s.state !== 'leave' ? h('span.badge', KINDS[s.kind].label) : null,
+          s.start ? h('span.detail-worked', `${dur(s.workedMs)} worked`) : null,
+        ].filter(Boolean));   // replaceChildren(null) would print the word "null"
+        const dayTasks = [...tasks.sortOpen(tasks.remindersOn(date), now), ...tasks.doneOn(date)];
+        notesSum.textContent = `Notes (${s.notes.length}) · To-dos (${dayTasks.length})`;
+        if (noteList.contains(document.activeElement) || todoList.contains(document.activeElement)) return;
+        noteList.replaceChildren(...(s.notes.length
+          ? s.notes.map((n) => widgets.noteItem(date, n))
+          : [h('li.muted.note-empty', 'No notes for this day.')]));
+        todoList.replaceChildren(...(dayTasks.length
+          ? dayTasks.map((t) => widgets.todoItem(t, { now }))
+          : [h('li.muted.note-empty', s.isPast ? 'No to-dos were ticked off this day.' : s.isToday ? 'No reminders today. Open to-dos are on the Today card.' : 'No reminders yet.')]));
+      }
+
+      function save() {
+        // times
+        const s0 = d.start ? toHHMM(d.start) : '';
+        const e0 = d.end ? toHHMM(d.end) : '';
+        if (!d.isFuture && (startIn.value !== s0 || endIn.value !== e0)) {
+          if (!startIn.value) worklog.clearTimes(date);
+          else {
+            const start = atTime(date, startIn.value);
+            const end = endIn.value ? atTime(date, endIn.value) : null;
+            if (end && end <= start) { timeHint.textContent = 'End must be after start.'; endIn.focus(); return; }
+            worklog.setTimes(date, { start, end });
+          }
+        }
+        // day type, for this day or a run of days
+        const kind = kindSel.value || null;
+        if (through.value && through.value > key) worklog.setKindRange(date, fromKey(through.value), kind);
+        else if (kind !== (d.kind ?? null)) worklog.setKind(date, kind);
+        ov.close();
+      }
+      for (const inp of [startIn, endIn, through]) inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+
+      ov.body.append(h('div.day-pop',
+        head,
         h('div.time-pair',
           h('label.field', h('span.field-label', 'Start'), startIn),
           h('label.field', h('span.field-label', 'End'), endIn)),
-        hint);
-
-      // Day type, with an optional end date to mark a run of days (a vacation week).
-      const kindSel = h('select.input', {
-        id: 'day-kind', 'aria-label': 'Day type',
-        onchange: () => worklog.setKind(date, kindSel.value || null),
-      }, [h('option', { value: '' }, 'Normal day'), ...Object.entries(KINDS).map(([k, v]) => h('option', { value: k }, v.label))]);
-      kindSel.value = d.kind ?? '';
-      const through = h('input.input', {
-        id: 'day-kind-through', type: 'date', min: selected, disabled: !d.kind, 'aria-label': 'Apply through date',
-        onchange: () => { if (through.value) worklog.setKindRange(date, fromKey(through.value), d.kind); },
-      });
-      detailKind.replaceChildren(
+        timeHint,
         h('div.time-pair',
           h('label.field', h('span.field-label', 'Day type'), kindSel),
           h('label.field', h('span.field-label', 'Apply through'), through)),
-        h('p.field-hint', d.kind
-          ? 'Pick a later date to mark a run of days. Weekends and days you already worked are skipped.'
-          : 'Holiday, vacation and sick days are not counted in the week. A half day halves that day.'));
-
-      const dayTasks = [...tasks.sortOpen(tasks.remindersOn(date), now), ...tasks.doneOn(date)];
-      todoList.replaceChildren(...(dayTasks.length
-        ? dayTasks.map((t) => widgets.todoItem(t, { now }))
-        : [h('li.muted.note-empty', d.isPast ? 'No to-dos were ticked off this day.' : d.isToday ? 'No reminders today. Open to-dos are on the Today tab.' : 'No reminders yet.')]));
-      todoForm.hidden = d.isPast;
-      todoInput.placeholder = d.isToday ? 'Add a to-do' : 'Remind me about… (that morning)';
-
-      noteList.replaceChildren(...(d.notes.length
-        ? d.notes.map((n) => widgets.noteItem(date, n))
-        : [h('li.muted.note-empty', 'No notes for this day.')]));
+        kindHint,
+        h('div.btn-row.day-pop-actions',
+          h('button.btn.btn-primary-sm', { onclick: save }, 'Save'),
+          h('button.link', { onclick: () => ov.close() }, 'Cancel')),
+        h('details.day-pop-more',
+          h('summary', notesSum),
+          h('h4.detail-sub', 'To-dos'), todoList, todoForm,
+          h('h4.detail-sub', 'Notes'), noteList,
+          h('div.note-form', noteInput, h('button.btn', { onclick: addNote }, 'Add')))));
+      refresh();
+      pop = { key, refresh, close: ov.close };
     }
 
-    const select = ({ view, param }) => {
+    const select = ({ view, param }, open) => {
       if (view !== 'calendar') return;
       selected = param && /^\d{4}-\d{2}-\d{2}$/.test(param) ? param : dateKey(new Date());
       const d = fromKey(selected);
       month = new Date(d.getFullYear(), d.getMonth(), 1);
-      renderGrid(); renderDetail();
+      renderGrid();
+      // Links from elsewhere (Week, Today's "Edit times", a note's day) open that day's pop-up.
+      if (open && param === selected && pop?.key !== selected) openDay(selected);
     };
 
-    select({ view: 'calendar', param: nav.current().param });
-    const offNav = nav.onChange(select);
-    const offData = onData(() => { renderGrid(); renderDetail(); });
+    select(nav.current(), false);   // no pop-up on startup, only when you go to a day
+    const offNav = nav.onChange((c) => select(c, true));
+    const offData = onData(() => { renderGrid(); pop?.refresh(); });
     let lastMinute = -1;
     const offTick = onTick((now) => {
       if (now.getMinutes() === lastMinute) return;
       lastMinute = now.getMinutes();
-      if (selected === dateKey(now) && !el.contains(document.activeElement)) renderDetail(now);
       renderGrid(now);
+      pop?.refresh();
     });
-    return () => { offNav(); offData(); offTick(); };
+    return () => { offNav(); offData(); offTick(); pop?.close(); };
   },
 };

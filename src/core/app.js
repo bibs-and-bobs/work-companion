@@ -83,6 +83,11 @@ function drawer() {
     body.append(el);
   }
   body.append(h('section.drawer-section', h('h3', 'Your data'), dataPanel({ h, store })));
+  // Signature at the very bottom of Settings, printed like a faint riso watermark.
+  body.append(h('footer.drawer-sign', { 'aria-label': 'Made by The Wizard King, Dmytro The First, 2026' },
+    h('span.sign-by', 'by'),
+    h('span.sign-name.reg-text', 'The Wizard King, Dmytro The First'),
+    h('span.sign-year', '© 2026')));
   return h('aside.drawer', { 'aria-label': 'Settings' },
     h('div.drawer-head', h('h2', 'Settings'), h('button.btn', { onclick: () => openDrawer(false) }, 'Close')),
     body);
