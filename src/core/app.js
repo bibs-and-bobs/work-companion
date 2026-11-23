@@ -79,8 +79,7 @@ function drawer() {
   for (const mod of allModules()) {
     if (!mod.settings) continue;
     const el = h('section.drawer-section', h('h3', mod.title));
-    mod.settings(el, ctxFor(mod));
-    body.append(el);
+    try { mod.settings(el, ctxFor(mod)); body.append(el); } catch (err) { console.error(`[${mod.id}] settings`, err); }
   }
   body.append(h('section.drawer-section', h('h3', 'Your data'), dataPanel({ h, store })));
   // Signature at the very bottom of Settings, printed like a faint riso watermark.
@@ -171,4 +170,4 @@ async function boot() {
   });
 }
 
-boot();
+boot().catch((err) => { console.error(err); window.__bootFail?.(err); });

@@ -50,7 +50,8 @@ costs money. A web app needs no installing, so nothing gets blocked.
   That's fine: only the code is public. Your log never leaves your browser.
 - Open the site in Edge or Chrome, then **Install app** (in the app's header, or the install icon in the address bar).
   It then opens in its own window, with its own icon in the Start menu and taskbar.
-- Updates: push to `main`. The deploy takes about 20 seconds; the app picks up new files on the next reload or open while online (the service worker revalidates every file, so GitHub Pages' 10-minute browser cache doesn't hold it back).
+- Updates: push to `main`. The deploy takes about 20 seconds; the app picks up new files on the next reload or open while online (the service worker revalidates every file, so GitHub Pages' 10-minute browser cache doesn't hold it back). On a network that hangs, it uses the cached copy after 4 s.
+- If it ever doesn't start, a **Work Companion did not start** box shows the error and a **Repair and reload** button (clears the offline copy of the app; your data stays).
 
 ### Locally
 
@@ -91,7 +92,8 @@ main.js / preload.js      Optional Electron wrapper: one window + read/write of 
 .github/workflows/        pages.yml: publishes src/ to GitHub Pages on push to main
 src/index.html            Page shell: manifest, icons, fonts, riso.css, core/app.js
 src/manifest.webmanifest  Web-app install info (name, colors, icons)
-src/sw.js                 Service worker: offline cache (network first with no-cache revalidation, cache fallback; no file list to maintain)
+src/sw.js                 Service worker: offline cache (network first with no-cache revalidation; cache fallback when offline or after 4 s; no file list to maintain)
+src/boot-check.js         Startup watchdog (plain script): if the app hasn't drawn after 8 s or boot throws, shows the error + Repair (clears cache & service worker, keeps data)
 src/icons/                icon.svg (source) + PNGs rendered from it
 src/fonts/                Self-hosted Bricolage Grotesque + Space Mono (OFL) and fonts.css
 src/styles/riso.css       Design tokens + every style (sections per module)
@@ -347,6 +349,7 @@ Code: MIT (`LICENSE`). Bundled fonts: SIL Open Font License, see `NOTICE.md`.
 
 ## Changelog
 
+- **v0.9.2**: Startup watchdog: instead of a blank page, a failed start shows the error and **Repair and reload**. The service worker falls back to the cached app when the network hangs (4 s). A module's Settings section that throws no longer stops the app.
 - **v0.9.1**: Updates show up on the next reload: the service worker revalidates files instead of using GitHub Pages' 10-minute browser cache.
 - **v0.9**: **Fold & punch** gets harder as you go: six levels, 8×8 sheets, up to 4 folds, diagonal folds, three hole shapes, six answers with near-miss wrong ones, and reverse questions. **Calendar** is now just the month grid: click a day for a **pop-up** with its times and day type (notes and to-dos folded away at the bottom, since the Today, Notes and To-do cards cover them). Widget board: **Auto-fill gaps** option (cards float up and grow into empty space) and **resize from any corner**. Settings signed *by The Wizard King, Dmytro The First, © 2026*.
 - **v0.8**: New **Break** tab. **Two-minute break** with Fold & punch, Overprint (ink mixing), Breathe and Stretch, each a 2-minute full-screen session with a Break done stamp and best scores. **Daily puzzle** (5×5 picture grid from the date) with a streak. **Eye break** (20-20-20) while the day is running. **Water** card on Today, saved on the day. Shared full-screen overlay (`widgets.overlay`). Widget board default rearranged into three columns.
