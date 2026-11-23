@@ -26,7 +26,7 @@ It is meant to grow one feature at a time and look finished at every stage.
 | **To-do** | **All to-dos** | Add a to-do with an optional reminder (date and/or time). Filters: Open, Reminders, Done (history grouped by the day ticked, links to the Calendar). Each row shows **Added …** and **Done …** times and the reminder. Option to allow Windows notifications. |
 | **Break** | **Two-minute break** | Pick an activity and it opens full screen with a 2:00 bar; at the end a **Break done** stamp sends you back to work. **Fold & punch**: a sheet is folded and punched; pick the unfolded pattern (as many rounds as you can). It **levels up** (1–6) after two right in a row and drops a level on a miss: bigger 8×8 sheets, up to 4 folds, a diagonal last fold, circle / square / diamond holes, six answers with near-miss wrong ones (one hole off, wrong shape, an unfold forgotten), and sometimes the reverse question (here's the unfolded sheet: which punch made it?). Points per right answer = the level. **Overprint**: stack pink / blue / yellow ink (0–100%) to match a target print. **Breathe**: box breathing with a halftone square (4·4·4·4). **Stretch**: 30-second stretch cards, stamped done. **Surprise me** picks one. Keeps breaks today and best scores. |
 | | **Daily puzzle** | A 5×5 picture grid: the numbers give the runs of filled squares in each row and column. One grid a day, made from the date (the same for everyone that day). Click to fill, right-click or **✕ mode** to mark empty; satisfied clues fade. Solving stamps it with your time and builds a **streak** of days in a row. |
-| | **Eye break** | 20-20-20: while your day is running, every 20 min (Settings) a full-screen "Look far away" with a 20 s countdown that closes itself. If the app isn't in front, a system notification instead (when allowed). Card shows the countdown, **Now**, **Pause**, and how many today. Waits a minute if you're already on a break. |
+| | **Eye break** | 20-20-20: while your day is running, every 20 min (Settings) a full-screen "Look far away" with a 20 s countdown that closes itself. If the app isn't the window you're using (e.g. on a second monitor), a system notification instead when notifications are allowed (otherwise the full-screen one still shows). Card shows the countdown, **Now**, **Pause**, and how many today. Waits a minute if you're already on a break. |
 | *(anywhere)* | **Reminder pop-ups** | When a reminder is due a pop-up appears bottom-right: Done, Snooze 10 min, Open. Also a Windows notification if allowed. Works while the app is open; missed reminders pop when it opens next. |
 | **Notes** | **Search notes** | Search all notes (matches are highlighted), filter by `#tag` chips, edit or delete in place, click a day to open it in the Calendar. |
 | *(drawer)* | **Settings** | Time at work (default 9h), unpaid break (default 1h), workdays, **Layout** (Tabs or Widget board, **Auto-fill gaps**), and **Your data**: save to a file on this PC (automatic), plus manual backup / restore. Signed at the bottom: *by The Wizard King, Dmytro The First, © 2026*. |
@@ -58,22 +58,17 @@ costs money. A web app needs no installing, so nothing gets blocked.
 Serve `src/` with any static server and open it, e.g. `cd src && python3 -m http.server 8000` → http://localhost:8000.
 ES modules don't load from `file://`, so double-clicking `index.html` won't work.
 
-### Optional: Electron desktop build
-
-Still works on machines without Smart App Control: `npm install` then `npm start`.
-An installer (`npm install --save-dev electron-builder`, `npm run dist`) would need code signing to pass Smart App Control.
-
 ### Where data lives
 
 | Running as | Saved in |
 |---|---|
 | Web app | The browser's localStorage for the site (per browser profile). Persistent storage is requested. |
 | Web app + linked file | The same, **plus** a real `.json` file the user chose (Settings → Your data → Choose file…). Every change is written to it automatically. |
-| Electron | `companion.json` in the OS user-data folder |
 
 **Linked file (v0.4)** uses the browser File System Access API, so it needs Edge or Chrome. How it behaves:
 - The browser remembers the file (the handle is kept in IndexedDB) but asks for permission again after a restart. The app shows **Reconnect file**; one click and saving resumes. Until then changes are still saved in the browser, and the newer copy is written to the file on reconnect.
 - At startup, if the file is linked and permitted, the **most recently saved copy wins**, judged by `_savedAt`. So a file edited or synced (for example by OneDrive) from another PC is picked up.
+- The file never holds up the start: if it (or the browser's IndexedDB) doesn't answer within 2.5 s, the app starts from the browser copy and reloads once if the file turns out to be newer.
 - Choosing a file that already holds a work log asks before replacing the browser's data. A file that holds something else is never overwritten.
 - A file in a OneDrive/Documents folder gives automatic cloud backup with no extra code.
 
@@ -85,10 +80,9 @@ now and then. A backup is the whole saved JSON object, and restoring runs the no
 ## Architecture
 
 Plain HTML/CSS/JavaScript ES modules. **No framework and no build step.** That's on purpose: any file can be read and edited directly.
-The same `src/` folder runs as a web app (main) and inside Electron (optional). Nothing loads from other servers: fonts are bundled.
+Everything is in `src/`, served as a static site. Nothing loads from other servers: fonts are bundled.
 
 ```
-main.js / preload.js      Optional Electron wrapper: one window + read/write of companion.json
 .github/workflows/        pages.yml: publishes src/ to GitHub Pages on push to main
 src/index.html            Page shell: manifest, icons, fonts, riso.css, core/app.js
 src/manifest.webmanifest  Web-app install info (name, colors, icons)
@@ -98,12 +92,13 @@ src/icons/                icon.svg (source) + PNGs rendered from it
 src/fonts/                Self-hosted Bricolage Grotesque + Space Mono (OFL) and fonts.css
 src/styles/riso.css       Design tokens + every style (sections per module)
 src/core/                 Shared framework. Modules never import these directly; they get them via ctx.
-  app.js                  Boot: masthead, tabs, Settings drawer, mounts modules. Defines ctx. Switches Tabs ↔ Widget board.
+  app.js                  Boot: masthead, tabs, mounts modules once. Defines ctx. Switches Tabs ↔ Widget board.
+  drawer.js               Settings drawer: Work day, Layout, each module's settings(), Your data, signature
   registry.js             registerView() / register() — the view & module contracts; setBoardDefaults()
-  board.js                Widget board data + layout maths (positions, place/push-down, hide/show, defaults)
-  board-view.js           Widget board UI: the grid, Edit layout (drag, resize, keyboard), Add widget, reveal on nav; Layout section of Settings
-  store.js                Saved state (one JSON object, namespaced) + versioned migrations + backup + which copy wins (browser vs linked file)
-  filesync.js             Linked file on the PC: file handle, permission, debounced writes (talks to the file only)
+  board.js                Widget board data + layout maths (positions, place/push-down, corner resize, hide/show, defaults)
+  board-view.js           Widget board UI: the grid, fit to window, Edit layout (drag, resize, keyboard), Add widget, reveal on nav
+  store.js                Saved state (one JSON object, namespaced, in localStorage) + versioned migrations + backup + which copy wins (browser vs linked file)
+  filesync.js             Linked file on the PC: file handle (IndexedDB, opened once), permission, debounced writes (talks to the file only)
   settings.js             User settings (day length, workdays)
   worklog.js              Day records + ALL hour maths (dayStats, weekStats, rangeStats) + actions (times, day type, notes)
   tasks.js                To-dos: one list, not tied to days; reminders (due, snooze, makeRemind)
@@ -112,9 +107,9 @@ src/core/                 Shared framework. Modules never import these directly;
   nav.js                  Hash router: #/<view>/<param>, e.g. #/calendar/2026-11-11
   clock.js                One shared 1-second tick
   dom.js                  h('div.class', {attrs}, ...children) element builder
-  settings-panel.js       Settings drawer: Work day section
   data-panel.js           Settings drawer: Your data (linked file, backup / restore)
-  widgets.js              Shared UI pieces: noteItem, todoItem (editable rows), richText (#tags + highlight), tagsOf, dayLabel, overlay (full-screen panel)
+  widgets.js              Shared UI pieces: noteItem, todoItem (editable rows), richText (#tags + highlight), tagsOf, dayLabel; re-exports overlay
+  overlay.js              Full-screen panel / small dialog (breaks, eye break, Calendar day pop-up)
   pwa.js                  Web-app plumbing: registers sw.js, Install button, persistent storage
 src/modules/
   index.js                THE list of tabs and modules, in order, plus where each starts on the widget board. Turn things on/off here.
@@ -134,7 +129,7 @@ modules/*          features: draw cards, react to data, call actions
 core/app.js        shell + ctx
 core/worklog.js  core/settings.js  core/nav.js  core/clock.js
 core/store.js      persistence + migrations + backup (export/import)
-platform           browser localStorage (web app)  or  main.js file I/O (Electron)
+platform           browser localStorage  (+ optional linked file, core/filesync.js)
 ```
 
 ### The core idea: one work log
@@ -143,7 +138,7 @@ Every feature that is about *a day* reads from and writes to the **work log**.
 Nothing keeps its own copy of hours or notes.
 
 ```jsonc
-// the saved object (localStorage key "work-companion", or companion.json in Electron)
+// the saved object (localStorage key "work-companion"; the same JSON in a linked file or a backup)
 {
   "_version": 3,
   "_lastBackup": "2026-11-11T16:20:00.000Z",  // set when a backup is downloaded
@@ -349,7 +344,7 @@ Code: MIT (`LICENSE`). Bundled fonts: SIL Open Font License, see `NOTICE.md`.
 
 ## Changelog
 
-- **v0.9.2**: Startup watchdog: instead of a blank page, a failed start shows the error and **Repair and reload**. The service worker falls back to the cached app when the network hangs (4 s). A module's Settings section that throws no longer stops the app.
+- **v0.9.2**: Fixed: the app could stay blank at startup when the linked file's storage (IndexedDB) or the file itself didn't answer; it now starts after 2.5 s at most. Startup watchdog: a failed start shows the error and **Repair and reload** instead of a blank page. The service worker falls back to the cached app when the network hangs (4 s). Eye break sends only a notification when the app isn't the window you're using. Tidy-up: Electron wrapper removed (Smart App Control blocks it), Settings drawer in one file (`core/drawer.js`), overlay in `core/overlay.js`, corner-resize maths in `board.js`, data serialized once per save, stray screenshots removed.
 - **v0.9.1**: Updates show up on the next reload: the service worker revalidates files instead of using GitHub Pages' 10-minute browser cache.
 - **v0.9**: **Fold & punch** gets harder as you go: six levels, 8×8 sheets, up to 4 folds, diagonal folds, three hole shapes, six answers with near-miss wrong ones, and reverse questions. **Calendar** is now just the month grid: click a day for a **pop-up** with its times and day type (notes and to-dos folded away at the bottom, since the Today, Notes and To-do cards cover them). Widget board: **Auto-fill gaps** option (cards float up and grow into empty space) and **resize from any corner**. Settings signed *by The Wizard King, Dmytro The First, © 2026*.
 - **v0.8**: New **Break** tab. **Two-minute break** with Fold & punch, Overprint (ink mixing), Breathe and Stretch, each a 2-minute full-screen session with a Break done stamp and best scores. **Daily puzzle** (5×5 picture grid from the date) with a streak. **Eye break** (20-20-20) while the day is running. **Water** card on Today, saved on the day. Shared full-screen overlay (`widgets.overlay`). Widget board default rearranged into three columns.

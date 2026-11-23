@@ -103,6 +103,22 @@ function settle(items, first = null) {
   return items;
 }
 
+// Resizing from a corner ('nw' | 'ne' | 'sw' | 'se') by dx / dy cells; the opposite corner stays put.
+export function resized(st, corner, dx, dy) {
+  const right = st.x + st.w;
+  const bottom = st.y + st.h;
+  const out = { ...st };
+  if (corner.includes('w')) {
+    out.x = clamp(st.x + dx, 0, right - MIN_W);
+    out.w = right - out.x;
+  } else out.w = clamp(st.w + dx, MIN_W, COLS - st.x);
+  if (corner.includes('n')) {
+    out.y = clamp(st.y + dy, Math.max(0, bottom - MAX_H), bottom - MIN_H);
+    out.h = bottom - out.y;
+  } else out.h = clamp(st.h + dy, MIN_H, MAX_H);
+  return out;
+}
+
 export function hide(items, id) {
   const out = structuredClone(items);
   out[id] = { ...out[id], hidden: true };

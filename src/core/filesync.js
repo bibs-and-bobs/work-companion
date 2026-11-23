@@ -9,7 +9,7 @@ const DB = 'work-companion-fs';
 const TABLE = 'kv';
 const KEY = 'handle';
 
-const supported = typeof window.showSaveFilePicker === 'function' && !window.companion;
+const supported = typeof window.showSaveFilePicker === 'function';
 
 // status: 'unsupported' | 'off' | 'on' | 'needs-permission' | 'error'
 const state = { status: supported ? 'off' : 'unsupported', name: '', savedAt: null, error: '' };
@@ -26,12 +26,15 @@ export const getState = () => ({ ...state });
 export function onStatus(fn) { subs.add(fn); fn({ ...state }); return () => subs.delete(fn); }
 
 // ── Remember the chosen file between visits (a file handle can be stored in IndexedDB) ──
-const openDb = () => new Promise((res, rej) => {
+// Opened once and reused. If it's blocked or fails, the next call tries again.
+let dbOpen = null;
+const openDb = () => (dbOpen ??= new Promise((res, rej) => {
   const r = indexedDB.open(DB, 1);
   r.onupgradeneeded = () => r.result.createObjectStore(TABLE);
   r.onsuccess = () => res(r.result);
   r.onerror = () => rej(r.error);
-});
+  r.onblocked = () => rej(new Error('File storage is blocked by another tab'));
+}).catch((e) => { dbOpen = null; throw e; }));
 async function idb(mode, fn) {
   const db = await openDb();
   return new Promise((res, rej) => {

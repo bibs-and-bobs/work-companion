@@ -1,12 +1,9 @@
 // Web-app plumbing: offline cache, "Install app" prompt, persistent storage.
-// Does nothing inside Electron (file://), where none of it applies.
 
-const isWeb = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 let installEvent = null;
 const installSubs = new Set();
 
 export function initPwa() {
-  if (!isWeb) return;
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch((err) => console.warn('Offline cache unavailable', err));
   }

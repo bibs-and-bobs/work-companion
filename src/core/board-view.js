@@ -10,7 +10,6 @@
 import * as board from './board.js';
 import * as store from './store.js';
 
-const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 export function boardView({ h, cards, modules, firstView }) {
   const el = h('main.board', { hidden: true, 'aria-label': 'Widget board' });
@@ -142,7 +141,7 @@ export function boardView({ h, cards, modules, firstView }) {
     const move = (ev) => {
       const dx = Math.round((ev.clientX - sx) / step.x);
       const dy = Math.round((ev.clientY + window.scrollY - sy) / step.y);
-      const next = mode === 'move' ? { x: start.x + dx, y: start.y + dy } : resized(start, mode, dx, dy);
+      const next = mode === 'move' ? { x: start.x + dx, y: start.y + dy } : board.resized(start, mode, dx, dy);
       preview = board.place(items, id, next);
       render(preview);
       if (ev.clientY > innerHeight - 30) window.scrollBy(0, 14);
@@ -161,21 +160,6 @@ export function boardView({ h, cards, modules, firstView }) {
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', end);
     window.addEventListener('pointercancel', end);
-  }
-
-  function resized(st, corner, dx, dy) {
-    const right = st.x + st.w;
-    const bottom = st.y + st.h;
-    const out = { ...st };
-    if (corner.includes('w')) {
-      out.x = clamp(st.x + dx, 0, right - board.MIN_W);
-      out.w = right - out.x;
-    } else out.w = clamp(st.w + dx, board.MIN_W, board.COLS - st.x);
-    if (corner.includes('n')) {
-      out.y = clamp(st.y + dy, Math.max(0, bottom - board.MAX_H), bottom - board.MIN_H);
-      out.h = bottom - out.y;
-    } else out.h = clamp(st.h + dy, board.MIN_H, board.MAX_H);
-    return out;
   }
 
   function keyMove(e, id) {
@@ -277,20 +261,4 @@ export function boardView({ h, cards, modules, firstView }) {
     setEditing,
     isEditing: () => editing,
   };
-}
-
-// Settings drawer section: choose the layout.
-export function layoutPanel({ h, settings }) {
-  const s = settings.get();
-  const fill = h('input', { type: 'checkbox', checked: board.isFill(), onchange: () => board.setFill(fill.checked) });
-  store.onChange((ns) => { if (ns === 'board') fill.checked = board.isFill(); });
-  const opt = (value, label) => h('label.chip',
-    h('input', { type: 'radio', name: 'layout', value, checked: s.layout === value,
-      onchange: () => settings.set({ layout: value }) }),
-    h('span', label));
-  return h('div.form',
-    h('div.field', h('span.field-label', 'Show the app as'), h('div.chips', opt('tabs', 'Tabs'), opt('board', 'Widget board')),
-      h('span.field-hint', 'Widget board puts everything on one screen. Use Edit layout to move, resize and hide widgets. Tabs is the classic look; your board is kept for next time.')),
-    h('div.field', h('span.field-label', 'Widget board'), h('div.chips', h('label.chip', fill, h('span', 'Auto-fill gaps'))),
-      h('span.field-hint', 'Widgets move up into empty space and grow to fill gaps, so the board has no holes.')));
 }

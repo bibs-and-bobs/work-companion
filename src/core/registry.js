@@ -5,7 +5,7 @@
 //   id,                 unique; also its private store namespace (ctx.ns)
 //   title,              card heading
 //   view,               which tab it lives on (defaults to the first view)
-//   ink,                accent ink: pink | blue | yellow | green
+//   ink,                accent ink: pink | blue | yellow | green | orange
 //   span,               optional: 'wide' | 'full'
 //   mount(el, ctx),     draw into el; return a cleanup function
 //   settings(el, ctx),  optional section in the Settings drawer

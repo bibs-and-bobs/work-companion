@@ -4,9 +4,10 @@
 //   tasks     -> core/tasks.js
 //   mod:<id>  -> a module's private data (ctx.ns)
 //   _version, _lastBackup, _savedAt -> bookkeeping
-// Uses the Electron bridge when present, localStorage in a plain browser.
-// In a browser the data can also be mirrored to a real file on the PC (core/filesync.js);
+// Kept in localStorage. It can also be mirrored to a real file on the PC (core/filesync.js);
 // when that file is linked, whichever copy was saved last (_savedAt) wins at startup.
+// The file never holds up the start: if it doesn't answer within FILE_WAIT, the app starts from
+// localStorage and reloads once if the file then turns out to be newer.
 //
 // When the shape of saved data changes, bump VERSION and add a migration.
 
@@ -14,6 +15,7 @@ import * as fileSync from './filesync.js';
 
 const LS_KEY = 'work-companion';
 const VERSION = 3;
+const FILE_WAIT = 2500;
 
 const migrations = {
   // v1 -> v2: fixed per-day hours replaced by "Begin day" + day length.
@@ -44,10 +46,8 @@ const migrations = {
 let data = {};
 const listeners = new Set();
 
-const backend = window.companion?.store ?? {
-  read: async () => { try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch { return {}; } },
-  write: async (d) => { try { localStorage.setItem(LS_KEY, JSON.stringify(d)); } catch {} },
-};
+const readLocal = () => { try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch { return {}; } };
+const writeLocal = (text) => { try { localStorage.setItem(LS_KEY, text); } catch {} };
 
 // Brings any saved object (old file or imported backup) up to the current shape.
 function migrate(d) {
@@ -60,14 +60,23 @@ function migrate(d) {
 }
 
 const serialize = () => JSON.stringify(data, null, 2);
+// Saves `data` to the browser and (if linked) the file. Serialized once for both.
+function persist({ file = true } = {}) {
+  const text = serialize();
+  writeLocal(text);
+  if (file) fileSync.write(text);
+}
 const looksLikeData = (o) => !!o && typeof o === 'object' && !Array.isArray(o)
   && ('worklog' in o || 'settings' in o || 'schedule' in o);
 
 export async function loadStore() {
-  data = (await backend.read()) || {};
-  if (migrate(data)) backend.write(data);
-  await fileSync.init();
-  if (fileSync.getState().status === 'on') await reconcile();
+  data = readLocal();
+  if (migrate(data)) persist({ file: false });
+  const sync = fileSync.init()
+    .then((status) => (status === 'on' ? reconcile() : status))
+    .catch(() => 'invalid');
+  const res = await Promise.race([sync, new Promise((r) => setTimeout(r, FILE_WAIT, 'late'))]);
+  if (res === 'late') sync.then((r) => { if (r === 'loaded') location.reload(); });
 }
 
 // Compares the linked file with what this browser has; the most recently saved copy wins.
@@ -75,7 +84,7 @@ export async function loadStore() {
 async function reconcile() {
   let text;
   try { text = await fileSync.readText(); } catch (e) { fileSync.fail(e); return 'invalid'; }
-  if (!text.trim()) { fileSync.write(serialize()); return 'saved'; }
+  if (!text.trim()) { persist(); return 'saved'; }
   let incoming = null;
   try { incoming = JSON.parse(text); } catch {}
   if (!looksLikeData(incoming)) {
@@ -85,8 +94,8 @@ async function reconcile() {
   migrate(incoming);
   const fileTime = incoming._savedAt ?? '';
   const localTime = data._savedAt ?? '';
-  if (fileTime > localTime) { data = incoming; backend.write(data); return 'loaded'; }
-  if (fileTime < localTime) { fileSync.write(serialize()); return 'saved'; }
+  if (fileTime > localTime) { data = incoming; persist({ file: false }); return 'loaded'; }
+  if (fileTime < localTime) { persist(); return 'saved'; }
   return 'same';
 }
 
@@ -114,11 +123,10 @@ export async function useFile(picked, { fromFile = false } = {}) {
   await fileSync.use(picked.handle);
   if (fromFile && picked.incoming) {
     data = picked.incoming;
-    backend.write(data);
+    persist({ file: false });
   } else {
     data._savedAt = new Date().toISOString();
-    backend.write(data);
-    fileSync.write(serialize());
+    persist();
   }
 }
 
@@ -132,8 +140,8 @@ export async function reconnectFile() {
 // Everything is one JSON object, so a backup is just that object.
 export function exportData() {
   data._lastBackup = new Date().toISOString();
-  backend.write(data);
-  return JSON.stringify(data, null, 2);
+  persist({ file: false });
+  return serialize();
 }
 
 // Replaces all saved data. Throws on anything that isn't a Work Companion backup.
@@ -143,8 +151,7 @@ export async function importData(json) {
   migrate(incoming);
   incoming._savedAt = new Date().toISOString();   // a restore counts as the newest save
   data = incoming;
-  await backend.write(data);
-  fileSync.write(serialize());
+  persist();
 }
 
 export const lastBackup = () => data._lastBackup ?? null;
@@ -156,8 +163,7 @@ export function get(ns, fallback) {
 export function set(ns, value) {
   data[ns] = value;
   data._savedAt = new Date().toISOString();
-  backend.write(data);
-  fileSync.write(serialize());
+  persist();
   listeners.forEach((fn) => fn(ns, value));
 }
 
