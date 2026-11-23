@@ -95,7 +95,7 @@ export function dataPanel({ h, store }) {
 
   showLast();
   return h('div.form',
-    window.companion ? null : fileBox,
+    fileBox,
     h('div.field',
       h('span.field-label', 'Backup'),
       h('div.btn-row', exportBtn, h('button.btn', { onclick: () => file.click() }, 'Restore…'), file),

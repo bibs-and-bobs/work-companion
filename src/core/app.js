@@ -1,5 +1,6 @@
-// Boots the app: loads state, draws the shell (masthead, tabs, settings drawer)
-// and mounts every registered module onto its view.
+// Boots the app: loads state, draws the shell (masthead, tabs; Settings drawer in drawer.js),
+// mounts every registered module once, and switches Tabs ↔ Widget board.
+// ctx is documented in README.md (Views and modules).
 import * as store from './store.js';
 import * as settings from './settings.js';
 import * as worklog from './worklog.js';
@@ -10,9 +11,8 @@ import * as nav from './nav.js';
 import { onTick } from './clock.js';
 import { allViews, allModules, modulesFor } from './registry.js';
 import { h } from './dom.js';
-import { settingsPanel } from './settings-panel.js';
-import { boardView, layoutPanel } from './board-view.js';
-import { dataPanel } from './data-panel.js';
+import { boardView } from './board-view.js';
+import { drawer, openDrawer } from './drawer.js';
 import * as widgets from './widgets.js';
 import { initPwa, onInstallable, install } from './pwa.js';
 import '../modules/index.js';
@@ -20,13 +20,13 @@ import '../modules/index.js';
 // Everything a module may use. Modules never import core files directly.
 const ctxFor = (mod) => ({
   h,          // element builder (core/dom.js)
-  settings,   // get() / set(patch) / dayLengthMs()
+  settings,   // get() / set(patch) / dayLengthMs() / workLengthMs()
   worklog,    // day records + dayStats/weekStats + actions
   tasks,      // to-dos: open/done lists, reminders, actions
   reminders: { notifyState, enableNotify },   // system notification permission
   time,       // date helpers and formatters
   nav,        // go(view, param) / current() / onChange(fn)
-  widgets,    // shared UI pieces: noteItem(date, note)
+  widgets,    // shared UI pieces: noteItem, todoItem, richText, overlay, …
   onTick,     // onTick(fn(now)) every second; returns unsubscribe
   onData: store.onChange, // onData(fn) after any saved change; returns unsubscribe
   ns: {       // the module's private saved data
@@ -34,8 +34,6 @@ const ctxFor = (mod) => ({
     set: (value) => store.set(`mod:${mod.id}`, value),
   },
 });
-
-const openDrawer = (open) => document.body.classList.toggle('drawer-open', open);
 
 let boardUI = null;   // widget board (core/board-view.js), used when settings.layout is 'board'
 
@@ -70,27 +68,6 @@ function masthead() {
     h('div.masthead-row',
       h('nav.tabs', tabs),
       h('div.btn-row', boardUI.toolbar, reconnectBtn, installBtn, h('button.btn', { onclick: () => openDrawer(true), title: 'Settings' }, 'Settings'))));
-}
-
-function drawer() {
-  const body = h('div.drawer-body',
-    h('section.drawer-section', h('h3', 'Work day'), settingsPanel({ h, settings })),
-    h('section.drawer-section', h('h3', 'Layout'), layoutPanel({ h, settings })));
-  for (const mod of allModules()) {
-    if (!mod.settings) continue;
-    const el = h('section.drawer-section', h('h3', mod.title));
-    mod.settings(el, ctxFor(mod));
-    body.append(el);
-  }
-  body.append(h('section.drawer-section', h('h3', 'Your data'), dataPanel({ h, store })));
-  // Signature at the very bottom of Settings, printed like a faint riso watermark.
-  body.append(h('footer.drawer-sign', { 'aria-label': 'Made by The Wizard King, Dmytro The First, 2026' },
-    h('span.sign-by', 'by'),
-    h('span.sign-name.reg-text', 'The Wizard King, Dmytro The First'),
-    h('span.sign-year', '© 2026')));
-  return h('aside.drawer', { 'aria-label': 'Settings' },
-    h('div.drawer-head', h('h2', 'Settings'), h('button.btn', { onclick: () => openDrawer(false) }, 'Close')),
-    body);
 }
 
 function card(mod) {
@@ -136,7 +113,7 @@ async function boot() {
   document.getElementById('app').replaceChildren(
     masthead(), ...views, boardUI.el,
     h('div.scrim', { onclick: () => openDrawer(false) }),
-    drawer());
+    drawer(ctxFor));
 
   // Tabs (classic) or widget board, from Settings → Layout. Switching moves the cards, it doesn't remount them.
   let layout = null;
@@ -171,4 +148,4 @@ async function boot() {
   });
 }
 
-boot();
+boot().catch((err) => { console.error(err); window.__bootFail?.(err); });

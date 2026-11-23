@@ -31,11 +31,14 @@ export default {
 
     function run() {
       nextAt = Date.now() + load().every * 60_000;
+      // Not the window you're using (e.g. on a second monitor): a system notification instead,
+      // when allowed. Without notifications the full-screen version still shows if it's visible.
       if (document.hidden || !document.hasFocus()) {
-        if (reminders.notifyState() === 'granted') {
+        const notified = reminders.notifyState() === 'granted';
+        if (notified) {
           try { new Notification('Eye break', { body: 'Look at something far away for 20 seconds.', tag: 'wc-eyes', icon: 'icons/icon-192.png' }); } catch {}
         }
-        if (document.hidden) return;
+        if (document.hidden || notified) { done(); return; }
       }
       let left = LOOK_SECONDS;
       const num = h('div.eyes-num', String(left));

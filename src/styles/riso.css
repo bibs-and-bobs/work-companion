@@ -848,6 +848,11 @@ table.sheet { width: 100%; border-collapse: collapse; font-size: 13px; min-width
   .layout-board .board-tools { display: none; }
 }
 
+/* ───────── Startup failure (src/boot-check.js) ───────── */
+.boot-fail { max-width: 640px; margin: 48px auto; display: grid; gap: 12px; justify-items: start; }
+.boot-fail-log { width: 100%; max-height: 40vh; overflow: auto; margin: 0; padding: 10px; font: 12px/1.4 'Space Mono', monospace;
+  white-space: pre-wrap; border: 2px dashed var(--ink); border-radius: 4px; color: var(--muted); }
+
 /* ───────── Small windows ───────── */
 @media (max-width: 640px) {
   .masthead { margin: 0 16px; padding-top: 20px; }
