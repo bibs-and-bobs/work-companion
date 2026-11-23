@@ -15,7 +15,7 @@ import * as fileSync from './filesync.js';
 
 const LS_KEY = 'work-companion';
 const VERSION = 3;
-const FILE_WAIT = 2500;
+const FILE_WAIT = 300;   // a healthy linked file answers in ~50 ms; slower ones finish in the background
 
 const migrations = {
   // v1 -> v2: fixed per-day hours replaced by "Begin day" + day length.

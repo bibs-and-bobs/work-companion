@@ -68,7 +68,7 @@ ES modules don't load from `file://`, so double-clicking `index.html` won't work
 **Linked file (v0.4)** uses the browser File System Access API, so it needs Edge or Chrome. How it behaves:
 - The browser remembers the file (the handle is kept in IndexedDB) but asks for permission again after a restart. The app shows **Reconnect file**; one click and saving resumes. Until then changes are still saved in the browser, and the newer copy is written to the file on reconnect.
 - At startup, if the file is linked and permitted, the **most recently saved copy wins**, judged by `_savedAt`. So a file edited or synced (for example by OneDrive) from another PC is picked up.
-- The file never holds up the start: if it (or the browser's IndexedDB) doesn't answer within 2.5 s, the app starts from the browser copy and reloads once if the file turns out to be newer.
+- The file never holds up the start: if it (or the browser's IndexedDB) doesn't answer within 0.3 s, the app starts from the browser copy and reloads once if the file turns out to be newer.
 - Choosing a file that already holds a work log asks before replacing the browser's data. A file that holds something else is never overwritten.
 - A file in a OneDrive/Documents folder gives automatic cloud backup with no extra code.
 
@@ -344,6 +344,7 @@ Code: MIT (`LICENSE`). Bundled fonts: SIL Open Font License, see `NOTICE.md`.
 
 ## Changelog
 
+- **v0.9.3**: Faster start when the linked file is slow: the app waits 0.3 s for it (was 2.5 s) and finishes the check in the background.
 - **v0.9.2**: Fixed: the app could stay blank at startup when the linked file's storage (IndexedDB) or the file itself didn't answer; it now starts after 2.5 s at most. Startup watchdog: a failed start shows the error and **Repair and reload** instead of a blank page. The service worker falls back to the cached app when the network hangs (4 s). Eye break sends only a notification when the app isn't the window you're using. Tidy-up: Electron wrapper removed (Smart App Control blocks it), Settings drawer in one file (`core/drawer.js`), overlay in `core/overlay.js`, corner-resize maths in `board.js`, data serialized once per save, stray screenshots removed.
 - **v0.9.1**: Updates show up on the next reload: the service worker revalidates files instead of using GitHub Pages' 10-minute browser cache.
 - **v0.9**: **Fold & punch** gets harder as you go: six levels, 8×8 sheets, up to 4 folds, diagonal folds, three hole shapes, six answers with near-miss wrong ones, and reverse questions. **Calendar** is now just the month grid: click a day for a **pop-up** with its times and day type (notes and to-dos folded away at the bottom, since the Today, Notes and To-do cards cover them). Widget board: **Auto-fill gaps** option (cards float up and grow into empty space) and **resize from any corner**. Settings signed *by The Wizard King, Dmytro The First, © 2026*.
