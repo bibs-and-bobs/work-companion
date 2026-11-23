@@ -12,3 +12,4 @@ Rules for every change:
 - Use riso tokens and rules from the README. Check narrow (~420px) and every day state.
 - Update README.md (features, architecture, changelog) in the same change.
 - The web app (`src/`, published to GitHub Pages) is the main target. Keep it working offline: no external URLs, everything inside `src/`.
+- Shipping: the owner wants every finished change live without merging it themselves. After testing, commit, then merge into `main` and push `main` (this deploys to GitHub Pages). No pull request needed. If a working branch is required, push it too, then fast-forward or merge it into `main`.
